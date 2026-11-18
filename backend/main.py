@@ -249,8 +249,14 @@ def get_content(id: str, user: dict = Depends(get_user)):
             pass
         findings.append(fd)
 
-    comments = db.query("SELECT * FROM comments WHERE content_id = ? ORDER BY created_at ASC", (id,))
-    approvals = db.query("SELECT * FROM approvals WHERE content_id = ? ORDER BY created_at ASC", (id,))
+    comments = db.query(
+        "SELECT c.*, u.name as author_name, u.role as author_role FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.content_id = ? ORDER BY c.created_at ASC",
+        (id,)
+    )
+    approvals = db.query(
+        "SELECT a.*, u.name as reviewer_name, u.role as reviewer_role FROM approvals a LEFT JOIN users u ON a.reviewer_id = u.id WHERE a.content_id = ? ORDER BY a.created_at ASC",
+        (id,)
+    )
 
     res = dict(c)
     res["content"] = dict(c)
@@ -411,3 +417,133 @@ def patch_finding(id: str, req: PatchFindingRequest, user: dict = Depends(get_us
         "data": data,
         "score": updated_score
     }
+
+# --- Workflow Endpoints (Submit, Comments, Decision, Audit) ---
+
+@app.post("/content/{id}/submit")
+def submit_content(id: str, user: dict = Depends(get_user)):
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+
+    is_creator = (c["creator_id"] == user["id"])
+    is_privileged = (user["role"] in ("manager", "admin"))
+    if not (is_creator or is_privileged):
+        raise HTTPException(status_code=403, detail="Forbidden: only creator or manager/admin can submit content")
+
+    if c["state"] != "Reviewed":
+        raise HTTPException(status_code=400, detail=f"Content must be in 'Reviewed' state to submit (current state is '{c['state']}')")
+
+    db.execute("UPDATE content SET state = 'InReview' WHERE id = ?", (id,))
+    db.audit(user["email"], "submit", f"content:{id}", {"from_state": "Reviewed", "to_state": "InReview"})
+
+    return {"id": id, "state": "InReview"}
+
+class CreateCommentRequest(BaseModel):
+    text: str
+    finding_id: Optional[str] = None
+
+@app.post("/content/{id}/comments")
+def add_comment(id: str, req: CreateCommentRequest, user: dict = Depends(get_user)):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Comment text cannot be empty")
+
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+    if user["role"] == "creator" and c["creator_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    comment_id = str(uuid.uuid4())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO comments (id, content_id, finding_id, author_id, text, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (comment_id, id, req.finding_id, user["id"], req.text.strip(), now)
+    )
+    return {
+        "id": comment_id,
+        "content_id": id,
+        "finding_id": req.finding_id,
+        "author_id": user["id"],
+        "author_name": user["name"],
+        "author_role": user["role"],
+        "text": req.text.strip(),
+        "created_at": now
+    }
+
+class DecisionRequest(BaseModel):
+    decision: str
+    reason: Optional[str] = ""
+    override: Optional[bool] = False
+
+@app.post("/content/{id}/decision")
+def content_decision(id: str, req: DecisionRequest, user: dict = Depends(get_user)):
+    if user["role"] not in ("reviewer", "manager", "admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: only reviewer, manager, or admin can make approval decisions")
+
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+
+    if c["state"] != "InReview":
+        raise HTTPException(status_code=400, detail=f"Content must be in 'InReview' state to make a decision (current state is '{c['state']}')")
+
+    if req.decision not in ("approve", "request_changes"):
+        raise HTTPException(status_code=400, detail="Invalid decision. Must be 'approve' or 'request_changes'.")
+
+    override_stored = None
+    if req.decision == "approve":
+        cur_ver = c["current_version"]
+        finding_rows = db.query("SELECT data, status FROM findings WHERE content_id = ? AND version_number = ? AND status = 'open'", (id, cur_ver))
+        has_blocker = False
+        for fr in finding_rows:
+            try:
+                fd = json.loads(fr["data"]) if isinstance(fr["data"], str) else fr["data"]
+                if fd.get("severity") == "Blocker":
+                    has_blocker = True
+                    break
+            except Exception:
+                pass
+
+        if has_blocker:
+            has_valid_override = bool(req.override) and bool(req.reason and req.reason.strip())
+            if not has_valid_override:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cannot approve content with open Blocker findings unless override is true with a non-empty reason."
+                )
+            override_stored = req.reason.strip()
+        new_state = "Approved"
+    else:
+        new_state = "ChangesRequested"
+
+    db.execute("UPDATE content SET state = ? WHERE id = ?", (new_state, id))
+
+    approval_id = str(uuid.uuid4())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO approvals (id, content_id, reviewer_id, decision, reason, override, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (approval_id, id, user["id"], req.decision, req.reason or "", override_stored, now)
+    )
+
+    db.audit(
+        user["email"],
+        "decision",
+        f"content:{id}",
+        {"decision": req.decision, "reason": req.reason, "override": req.override, "new_state": new_state}
+    )
+
+    return {
+        "id": id,
+        "state": new_state,
+        "decision": req.decision,
+        "approval_id": approval_id
+    }
+
+@app.get("/audit")
+def get_audit(user: dict = Depends(require_role("manager", "admin"))):
+    rows = db.query("SELECT * FROM audit ORDER BY created_at DESC LIMIT 200")
+    return rows
