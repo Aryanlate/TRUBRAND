@@ -1,0 +1,53 @@
+{
+  "brand": {"name": "GreenBrew", "about": "Fictional eco-friendly coffee brand for demos"},
+  "rules": [
+    {"id": "R-2.1", "category": "tone", "title": "Warm and conversational", "text": "Write like a friendly neighbour: warm, simple, human. Avoid corporate jargon.", "severity": "Info", "good": "Slow mornings start here.", "bad": "Leverage our synergistic coffee solutions."},
+    {"id": "R-2.3", "category": "tone", "title": "Friendly, never pushy", "text": "Invite, do not pressure. No all-caps commands, no stacked exclamation marks, no urgency tricks such as BUY NOW!!!.", "severity": "Warning", "good": "Try GreenBrew today.", "bad": "BUY NOW!!!"},
+    {"id": "R-2.4", "category": "tone", "title": "No fear or guilt", "text": "Never shame or scare customers or criticise other people's choices.", "severity": "Warning", "good": "A small switch for a greener morning.", "bad": "Stop poisoning the planet."},
+    {"id": "R-3.1", "category": "messaging", "title": "Core message", "text": "GreenBrew stands for affordable, planet-friendly coffee. Messages must reflect this and must not promise unrelated health or performance benefits.", "severity": "Warning"},
+    {"id": "R-3.2", "category": "messaging", "title": "No competitor comparisons", "text": "Never name or compare GreenBrew with other coffee brands.", "severity": "Blocker"},
+    {"id": "R-4.1", "category": "terminology", "title": "British spelling", "text": "Use British spelling: colour, flavour, organise, favourite.", "severity": "Info"},
+    {"id": "R-4.2", "category": "terminology", "title": "No superlatives", "text": "Do not use superlatives or ranking claims such as cheapest, best in the world, number one or unbeatable.", "severity": "Blocker"},
+    {"id": "R-4.3", "category": "terminology", "title": "Brand name", "text": "Always write the brand name exactly as GreenBrew (one word, capital G and B).", "severity": "Warning"},
+    {"id": "R-5.1", "category": "claims", "title": "Claims need approved evidence", "text": "Every environmental, health or performance claim must match an approved claim in the claim ledger whose evidence is valid and not expired. Unlisted claims are not allowed.", "severity": "Blocker"},
+    {"id": "R-6.1", "category": "visual", "title": "Logo background", "text": "Place the logo only on white (#FFFFFF) or brand green (#2E7D32).", "severity": "Warning"},
+    {"id": "A11Y-1", "category": "accessibility", "title": "Alt text", "text": "Every image must have alt text describing what it shows.", "severity": "Warning"},
+    {"id": "A11Y-2", "category": "accessibility", "title": "Colour contrast", "text": "Text must have a contrast ratio of at least 4.5:1 against its background.", "severity": "Warning"}
+  ],
+  "terms": [
+    {"type": "banned", "term": "cheapest", "replacement": "affordable", "rule_id": "R-4.2", "severity": "Blocker", "note": "Superlatives such as cheapest are not allowed."},
+    {"type": "banned", "term": "best in the world", "replacement": "loved by our customers", "rule_id": "R-4.2", "severity": "Blocker", "note": "Ranking claims are not allowed."},
+    {"type": "banned", "term": "world's best", "replacement": "loved by our customers", "rule_id": "R-4.2", "severity": "Blocker", "note": "Ranking claims are not allowed."},
+    {"type": "banned", "term": "number one", "replacement": "a favourite", "rule_id": "R-4.2", "severity": "Blocker", "note": "Ranking claims are not allowed."},
+    {"type": "banned", "term": "unbeatable", "replacement": "great value", "rule_id": "R-4.2", "severity": "Blocker", "note": "Superlatives are not allowed."},
+    {"type": "replace", "term": "color", "replacement": "colour", "rule_id": "R-4.1"},
+    {"type": "replace", "term": "flavor", "replacement": "flavour", "rule_id": "R-4.1"},
+    {"type": "replace", "term": "organize", "replacement": "organise", "rule_id": "R-4.1"},
+    {"type": "replace", "term": "favorite", "replacement": "favourite", "rule_id": "R-4.1"},
+    {"type": "brand_name", "term": "GreenBrew", "rule_id": "R-4.3"}
+  ],
+  "facts": [
+    {"id": "F-1", "statement": "GreenBrew beans are grown on partner farms in Karnataka and Kerala, India."},
+    {"id": "F-2", "statement": "A 250 g bag of GreenBrew coffee costs INR 399."},
+    {"id": "F-3", "statement": "GreenBrew delivers across India in 3 to 5 working days."},
+    {"id": "F-4", "statement": "GreenBrew was founded in 2021."}
+  ],
+  "claims": [
+    {"id": "C-3", "phrase": "carbon neutral", "evidence": "Carbon-neutral certificate CN-2025", "expires_on": "2027-03-31"},
+    {"id": "C-7", "phrase": "100% compostable", "evidence": "Compostable packaging certificate", "expires_on": "2026-03-31"},
+    {"id": "C-9", "phrase": "fair-trade sourced", "evidence": "", "expires_on": null}
+  ],
+  "assets": {"approved_logo_backgrounds": ["#FFFFFF", "#2E7D32"], "palette": ["#2E7D32", "#FFFFFF", "#F5E6CC", "#3E2723"]},
+  "samples": [
+    {"name": "Risky post", "text": "GreenBrew is the world's cheapest, 100% compostable coffee! BUY NOW!!!", "meta": {"has_image": true, "alt_text": "", "logo_bg": "#D32F2F"}, "expected": ["R-4.2", "C-7", "R-2.3", "R-6.1", "A11Y-1"]},
+    {"name": "Clean post", "text": "Meet our single-origin blend from Karnataka. Brewed for slow mornings. Try GreenBrew today.", "meta": {"has_image": true, "alt_text": "A cup of GreenBrew coffee on a wooden table", "logo_bg": "#FFFFFF"}, "expected": []},
+    {"name": "Spelling", "text": "Our new organize-your-morning bundle has a rich flavor and a bold color.", "meta": {}, "expected": ["R-4.1"]},
+    {"name": "Brand name", "text": "Try Greenbrew or Green Brew for a smoother morning.", "meta": {}, "expected": ["R-4.3"]},
+    {"name": "Competitor", "text": "Unlike Starbucks, GreenBrew never compromises on taste.", "meta": {}, "expected": ["R-3.2"]},
+    {"name": "Wrong facts", "text": "A 250 g bag of GreenBrew costs just INR 299 and arrives in 1 day.", "meta": {}, "expected": ["F-2", "F-3"]},
+    {"name": "Unsupported claim", "text": "Our fair-trade sourced beans are carbon neutral.", "meta": {}, "expected": ["C-9"]},
+    {"name": "Fear tone", "text": "Stop poisoning the planet with your old coffee. Switch now or regret it.", "meta": {}, "expected": ["R-2.4"]},
+    {"name": "AI drift", "text": "GreenBrew's quantum-roasted beans are clinically proven to boost IQ by 30%.", "meta": {}, "expected": ["R-5.1"]},
+    {"name": "Low contrast", "text": "Fresh beans, fair prices.", "meta": {"fg": "#9E9E9E", "bg": "#FFFFFF"}, "expected": ["A11Y-2"]}
+  ]
+}
