@@ -25,11 +25,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TruBrand API", lifespan=lifespan)
 
-origins = list({
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    os.getenv("FRONTEND_URL", "http://localhost:3000")
-})
+frontend_env = os.getenv("FRONTEND_URL", "http://localhost:3000")
+origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+for u in frontend_env.split(","):
+    u_clean = u.strip().rstrip("/")
+    if u_clean and u_clean not in origins:
+        origins.append(u_clean)
 
 app.add_middleware(
     CORSMiddleware,
