@@ -1,4 +1,8 @@
 import os
+import json
+import uuid
+import datetime
+from typing import Optional, Any
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends
@@ -9,7 +13,8 @@ load_dotenv()
 
 import db
 import llm
-from auth import verify_password, create_token, get_user
+import review
+from auth import verify_password, create_token, get_user, require_role
 from seed import seed_if_empty
 
 @asynccontextmanager
@@ -33,6 +38,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def load_kb():
+    rows = db.query("SELECT id, kind, data FROM kb_items")
+    kb = {"rules": [], "terms": [], "facts": [], "claims": [], "assets": {"approved_logo_backgrounds": [], "palette": []}}
+    for r in rows:
+        kind = r["kind"]
+        try:
+            val = json.loads(r["data"])
+        except Exception:
+            continue
+        if kind in ("rule", "rules"):
+            if isinstance(val, dict) and "id" not in val:
+                val["id"] = r["id"]
+            kb["rules"].append(val)
+        elif kind in ("term", "terms"):
+            if isinstance(val, dict) and "id" not in val:
+                val["id"] = r["id"]
+            kb["terms"].append(val)
+        elif kind in ("fact", "facts"):
+            if isinstance(val, dict) and "id" not in val:
+                val["id"] = r["id"]
+            kb["facts"].append(val)
+        elif kind in ("claim", "claims"):
+            if isinstance(val, dict) and "id" not in val:
+                val["id"] = r["id"]
+            kb["claims"].append(val)
+        elif kind in ("asset", "assets"):
+            kb["assets"] = val
+    return kb
+
+KIND_NORM = {
+    "rules": "rule", "rule": "rule",
+    "terms": "term", "term": "term",
+    "facts": "fact", "fact": "fact",
+    "claims": "claim", "claim": "claim",
+    "assets": "asset", "asset": "asset",
+}
+
+# --- Auth & System Endpoints ---
 
 class LoginRequest(BaseModel):
     email: str
@@ -66,3 +110,304 @@ def providers():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+# --- KB CRUD Endpoints ---
+
+@app.get("/kb/{kind}")
+def get_kb_kind(kind: str, user: dict = Depends(get_user)):
+    k = KIND_NORM.get(kind.lower())
+    if not k:
+        raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    if k == "asset":
+        rows = db.query("SELECT id, kind, data FROM kb_items WHERE kind = 'asset'")
+        if rows:
+            try:
+                return json.loads(rows[0]["data"])
+            except Exception:
+                return {}
+        return {"approved_logo_backgrounds": [], "palette": []}
+    rows = db.query("SELECT id, kind, data FROM kb_items WHERE kind = ?", (k,))
+    items = []
+    for r in rows:
+        try:
+            val = json.loads(r["data"])
+            if isinstance(val, dict) and "id" not in val:
+                val["id"] = r["id"]
+            items.append(val)
+        except Exception:
+            continue
+    return items
+
+@app.post("/kb/{kind}")
+def create_kb_item(kind: str, item: dict, user: dict = Depends(require_role("manager", "admin"))):
+    k = KIND_NORM.get(kind.lower())
+    if not k:
+        raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    if k == "asset":
+        db.execute("INSERT OR REPLACE INTO kb_items (id, kind, data) VALUES ('assets', 'asset', ?)", (json.dumps(item),))
+        return item
+    item_id = item.get("id") or str(uuid.uuid4())
+    item["id"] = item_id
+    db.execute("INSERT INTO kb_items (id, kind, data) VALUES (?, ?, ?)", (item_id, k, json.dumps(item)))
+    return item
+
+@app.put("/kb/{kind}/{id}")
+def update_kb_item(kind: str, id: str, item: dict, user: dict = Depends(require_role("manager", "admin"))):
+    k = KIND_NORM.get(kind.lower())
+    if not k:
+        raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    existing = db.query("SELECT id FROM kb_items WHERE id = ?", (id,))
+    if not existing and k != "asset":
+        raise HTTPException(status_code=404, detail="Item not found")
+    item["id"] = id
+    db.execute("INSERT OR REPLACE INTO kb_items (id, kind, data) VALUES (?, ?, ?)", (id, k, json.dumps(item)))
+    return item
+
+@app.delete("/kb/{kind}/{id}")
+def delete_kb_item(kind: str, id: str, user: dict = Depends(require_role("manager", "admin"))):
+    k = KIND_NORM.get(kind.lower())
+    if not k:
+        raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    db.execute("DELETE FROM kb_items WHERE id = ?", (id,))
+    return {"ok": True}
+
+# --- Content Endpoints ---
+
+class CreateContentRequest(BaseModel):
+    title: str
+    channel: str
+    text: str
+    meta: Optional[dict] = None
+
+@app.post("/content")
+def create_content(req: CreateContentRequest, user: dict = Depends(get_user)):
+    content_id = str(uuid.uuid4())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO content (id, creator_id, title, channel, state, current_version, created_at) VALUES (?, ?, ?, ?, 'Draft', 1, ?)",
+        (content_id, user["id"], req.title, req.channel, now)
+    )
+    version_id = str(uuid.uuid4())
+    meta_json = json.dumps(req.meta or {})
+    db.execute(
+        "INSERT INTO versions (id, content_id, number, body, meta, score, created_by, created_at) VALUES (?, ?, 1, ?, ?, NULL, ?, ?)",
+        (version_id, content_id, req.text, meta_json, user["id"], now)
+    )
+    return {
+        "id": content_id,
+        "creator_id": user["id"],
+        "title": req.title,
+        "channel": req.channel,
+        "state": "Draft",
+        "current_version": 1,
+        "created_at": now
+    }
+
+@app.get("/content")
+def list_content(user: dict = Depends(get_user)):
+    if user["role"] == "creator":
+        rows = db.query("SELECT * FROM content WHERE creator_id = ? ORDER BY created_at DESC", (user["id"],))
+    else:
+        rows = db.query("SELECT * FROM content ORDER BY created_at DESC")
+    return rows
+
+@app.get("/content/{id}")
+def get_content(id: str, user: dict = Depends(get_user)):
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+    if user["role"] == "creator" and c["creator_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    raw_versions = db.query("SELECT * FROM versions WHERE content_id = ? ORDER BY number ASC", (id,))
+    versions = []
+    for v in raw_versions:
+        vd = dict(v)
+        try:
+            vd["meta"] = json.loads(vd["meta"]) if vd["meta"] else {}
+        except Exception:
+            pass
+        try:
+            vd["score"] = json.loads(vd["score"]) if vd["score"] else None
+        except Exception:
+            pass
+        versions.append(vd)
+
+    raw_findings = db.query("SELECT * FROM findings WHERE content_id = ?", (id,))
+    findings = []
+    for f in raw_findings:
+        fd = dict(f)
+        try:
+            parsed = json.loads(fd["data"]) if isinstance(fd["data"], str) else fd["data"]
+            if isinstance(parsed, dict):
+                for k, val in parsed.items():
+                    if k not in fd or fd[k] is None:
+                        fd[k] = val
+                fd["data"] = parsed
+        except Exception:
+            pass
+        findings.append(fd)
+
+    comments = db.query("SELECT * FROM comments WHERE content_id = ? ORDER BY created_at ASC", (id,))
+    approvals = db.query("SELECT * FROM approvals WHERE content_id = ? ORDER BY created_at ASC", (id,))
+
+    res = dict(c)
+    res["content"] = dict(c)
+    res["versions"] = versions
+    res["findings"] = findings
+    res["comments"] = [dict(cm) for cm in comments]
+    res["approvals"] = [dict(ap) for ap in approvals]
+    return res
+
+class ReviewContentRequest(BaseModel):
+    provider: Optional[str] = None
+    mask_pii: Optional[bool] = False
+
+@app.post("/content/{id}/review")
+def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: dict = Depends(get_user)):
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+    if user["role"] == "creator" and c["creator_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    ver_num = c["current_version"]
+    ver_rows = db.query("SELECT * FROM versions WHERE content_id = ? AND number = ?", (id, ver_num))
+    if not ver_rows:
+        raise HTTPException(status_code=404, detail="Version not found")
+    v = ver_rows[0]
+    body = v["body"]
+    meta = json.loads(v["meta"]) if v["meta"] else {}
+
+    preferred = req.provider if req else None
+    result = review.review(body, load_kb(), meta, preferred=preferred)
+    findings = result["findings"]
+    score = result["score"]
+    provider = result["provider"]
+    ai_error = result["ai_error"]
+
+    # delete previous findings of that version
+    db.execute("DELETE FROM findings WHERE content_id = ? AND version_number = ?", (id, ver_num))
+
+    # store new findings (status open)
+    saved_findings = []
+    for f in findings:
+        f_copy = dict(f)
+        f_id = f_copy.get("id") or str(uuid.uuid4())
+        f_copy["id"] = f_id
+        f_copy["status"] = "open"
+        db.execute(
+            "INSERT INTO findings (id, content_id, version_number, data, status, dismiss_reason) VALUES (?, ?, ?, ?, 'open', NULL)",
+            (f_id, id, ver_num, json.dumps(f_copy))
+        )
+        saved_findings.append(f_copy)
+
+    # store the score JSON in versions.score
+    db.execute("UPDATE versions SET score = ? WHERE content_id = ? AND number = ?", (json.dumps(score), id, ver_num))
+
+    # set state Reviewed
+    db.execute("UPDATE content SET state = 'Reviewed' WHERE id = ?", (id,))
+
+    # write audit with services=provider
+    db.audit(user["email"], "review", f"content:{id}:v{ver_num}", {"overall_score": score.get("overall"), "findings_count": len(findings)}, services=provider or "")
+
+    return {
+        "findings": saved_findings,
+        "score": score,
+        "provider": provider,
+        "ai_error": ai_error
+    }
+
+class ReviseContentRequest(BaseModel):
+    text: str
+    meta: Optional[dict] = None
+
+@app.post("/content/{id}/revise")
+def revise_content(id: str, req: ReviseContentRequest, user: dict = Depends(get_user)):
+    contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+    if user["role"] == "creator" and c["creator_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    new_ver = c["current_version"] + 1
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    meta_json = json.dumps(req.meta or {})
+    ver_id = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO versions (id, content_id, number, body, meta, score, created_by, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+        (ver_id, id, new_ver, req.text, meta_json, user["id"], now)
+    )
+    db.execute("UPDATE content SET current_version = ?, state = 'Draft' WHERE id = ?", (new_ver, id))
+    return {
+        "content_id": id,
+        "current_version": new_ver,
+        "state": "Draft",
+        "version_id": ver_id
+    }
+
+class PatchFindingRequest(BaseModel):
+    status: str
+    dismiss_reason: Optional[str] = None
+
+@app.patch("/findings/{id}")
+def patch_finding(id: str, req: PatchFindingRequest, user: dict = Depends(get_user)):
+    if req.status not in ("accepted", "dismissed", "open"):
+        raise HTTPException(status_code=400, detail="Invalid status. Must be accepted, dismissed, or open.")
+    if req.status == "dismissed" and not (req.dismiss_reason or "").strip():
+        raise HTTPException(status_code=400, detail="Dismissing a finding requires a dismiss_reason")
+
+    findings = db.query("SELECT * FROM findings WHERE id = ?", (id,))
+    if not findings:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    f = findings[0]
+
+    contents = db.query("SELECT * FROM content WHERE id = ?", (f["content_id"],))
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+
+    is_creator = (c["creator_id"] == user["id"])
+    is_privileged = (user["role"] in ("manager", "admin"))
+    if not (is_creator or is_privileged):
+        raise HTTPException(status_code=403, detail="Forbidden: only creator or manager/admin can modify findings")
+
+    try:
+        data = json.loads(f["data"]) if isinstance(f["data"], str) else f["data"]
+    except Exception:
+        data = {}
+
+    data["status"] = req.status
+    dismiss_reason = req.dismiss_reason if req.status == "dismissed" else None
+    data["dismiss_reason"] = dismiss_reason
+
+    db.execute(
+        "UPDATE findings SET status = ?, dismiss_reason = ?, data = ? WHERE id = ?",
+        (req.status, dismiss_reason, json.dumps(data), id)
+    )
+
+    # Recalculate and update version score
+    all_f_rows = db.query("SELECT data, status FROM findings WHERE content_id = ? AND version_number = ?", (f["content_id"], f["version_number"]))
+    all_f = []
+    for r in all_f_rows:
+        try:
+            d = json.loads(r["data"]) if isinstance(r["data"], str) else r["data"]
+            d["status"] = r["status"]
+            all_f.append(d)
+        except Exception:
+            pass
+    updated_score = review.score(all_f)
+    db.execute("UPDATE versions SET score = ? WHERE content_id = ? AND number = ?", (json.dumps(updated_score), f["content_id"], f["version_number"]))
+
+    return {
+        "id": id,
+        "content_id": f["content_id"],
+        "version_number": f["version_number"],
+        "status": req.status,
+        "dismiss_reason": dismiss_reason,
+        "data": data,
+        "score": updated_score
+    }
