@@ -11,6 +11,7 @@ import {
   Score,
   Version,
   Comment,
+  User,
   apiRequest,
   getStoredUser,
 } from "@/lib/api";
@@ -57,7 +58,7 @@ export default function ContentDetailPage() {
   const [decisionOverride, setDecisionOverride] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
 
-  const user = getStoredUser();
+  const [user, setUser] = useState<User | null>(null);
   const isPrivileged = user?.role === "reviewer" || user?.role === "manager" || user?.role === "admin";
   const isCreatorOrPrivileged = user?.role === "manager" || user?.role === "admin" || (content && user?.id === content.creator_id);
 
@@ -74,6 +75,7 @@ export default function ContentDetailPage() {
   };
 
   useEffect(() => {
+    setUser(getStoredUser());
     if (!id) return;
     loadContent();
 

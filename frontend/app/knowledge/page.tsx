@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
-import { apiRequest, getStoredUser } from "@/lib/api";
+import { apiRequest, getStoredUser, User } from "@/lib/api";
 
 type TabKind = "rules" | "terms" | "facts" | "claims";
 
@@ -17,9 +17,15 @@ export default function KnowledgeBasePage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
-  const user = getStoredUser();
+  const [user, setUser] = useState<User | null>(null);
+  const [today, setToday] = useState<string>("");
+
+  useEffect(() => {
+    setUser(getStoredUser());
+    setToday(new Date().toISOString().split("T")[0]);
+  }, []);
+
   const canWrite = user?.role === "manager" || user?.role === "admin";
-  const today = new Date().toISOString().split("T")[0];
 
   const loadData = (kind: TabKind) => {
     setLoading(true);
@@ -301,7 +307,7 @@ export default function KnowledgeBasePage() {
                             {item.expires_on ? (
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-mono text-slate-700">{item.expires_on}</span>
-                                {item.expires_on < today && (
+                                {today && item.expires_on < today && (
                                   <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-[#B91C1C] border border-[#B91C1C]">
                                     Expired
                                   </span>
