@@ -10,3 +10,4 @@ pdfplumber
 python-docx
 pillow
 pytesseract
+pytest
