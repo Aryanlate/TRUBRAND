@@ -5,7 +5,7 @@ import datetime
 from typing import Optional, Any
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -14,6 +14,7 @@ load_dotenv()
 import db
 import llm
 import review
+from extract import extract_content
 from auth import verify_password, create_token, get_user, require_role
 from seed import seed_if_empty
 
@@ -668,3 +669,25 @@ def get_insights(user: dict = Depends(require_role("manager", "admin"))):
         "claims_expiring": claims_expiring,
         "most_frequent_categories": most_frequent_categories
     }
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_user)):
+    file_bytes = await file.read()
+    
+    # Retrieve brand palette from kb_items assets
+    asset_rows = db.query("SELECT data FROM kb_items WHERE kind = 'asset'")
+    palette = []
+    if asset_rows:
+        try:
+            asset_data = json.loads(asset_rows[0]["data"])
+            palette = asset_data.get("palette", [])
+        except Exception:
+            pass
+
+    try:
+        result = extract_content(file.filename or "", file_bytes, brand_palette=palette)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"File extraction failed: {str(e)}")

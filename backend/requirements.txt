@@ -6,3 +6,7 @@ scikit-learn
 pydantic
 pyjwt
 python-multipart
+pdfplumber
+python-docx
+pillow
+pytesseract

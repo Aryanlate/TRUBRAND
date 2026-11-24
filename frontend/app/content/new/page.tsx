@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
@@ -8,6 +8,8 @@ import { apiRequest } from "@/lib/api";
 
 export default function NewContentPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [title, setTitle] = useState("");
   const [channel, setChannel] = useState("Social");
   const [text, setText] = useState("");
@@ -21,6 +23,12 @@ export default function NewContentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // File upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [uploadWarnings, setUploadWarnings] = useState<string[]>([]);
+
   useEffect(() => {
     apiRequest<{ approved_logo_backgrounds?: string[] }>("/kb/asset")
       .then((data) => {
@@ -30,10 +38,72 @@ export default function NewContentPage() {
         }
       })
       .catch(() => {
-        // Fallback default
         setLogoBg("#FFFFFF");
       });
   }, []);
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File size exceeds 5 MB limit.");
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setUploadSuccess(null);
+    setUploadWarnings([]);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await apiRequest<{
+        text: string;
+        meta_suggestions: Record<string, any>;
+        warnings: string[];
+      }>("/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (result.text) {
+        setText(result.text);
+      }
+
+      if (result.meta_suggestions) {
+        const ms = result.meta_suggestions;
+        if (ms.has_image !== undefined) setHasImage(Boolean(ms.has_image));
+        if (ms.alt_text) setAltText(ms.alt_text);
+        if (ms.logo_bg) setLogoBg(ms.logo_bg);
+        if (ms.fg) setFg(ms.fg);
+        if (ms.bg) setBg(ms.bg);
+      }
+
+      if (result.warnings && result.warnings.length > 0) {
+        setUploadWarnings(result.warnings);
+      }
+
+      if (!title.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+      }
+
+      setUploadSuccess(`Extracted content from "${file.name}" successfully.`);
+    } catch (err: any) {
+      setError(err?.message || "File upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +148,7 @@ export default function NewContentPage() {
           <div>
             <h1 className="text-3xl font-bold text-[#142D4E] tracking-tight">Create New Content</h1>
             <p className="text-base text-slate-600 mt-1">
-              Draft content for automated brand governance and compliance review.
+              Draft content or import from documents for automated brand governance review.
             </p>
           </div>
           <Link
@@ -93,6 +163,65 @@ export default function NewContentPage() {
           <div className="p-4 bg-red-50 border border-[#B91C1C] text-[#B91C1C] rounded-xl text-base font-medium flex items-center gap-2">
             <span>⚠️</span>
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Drag and Drop Upload Box */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-2 ${
+            isDragging
+              ? "border-[#2563EB] bg-blue-50/60"
+              : "border-[#E2E8F0] bg-white hover:bg-slate-50"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.docx,.png,.jpg,.jpeg"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                handleFileUpload(e.target.files[0]);
+              }
+            }}
+          />
+
+          <div className="text-3xl">{uploading ? "⏳" : "📁"}</div>
+          <div className="text-base font-semibold text-[#142D4E]">
+            {uploading ? "Extracting file content & metadata..." : "Drop a document or image here, or click to upload"}
+          </div>
+          <p className="text-xs text-slate-500">
+            Accepts .txt, .pdf (pdfplumber), .docx (Word), .png, .jpg (OCR & dominant colour) • Max 5 MB
+          </p>
+        </div>
+
+        {uploadSuccess && (
+          <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-sm font-medium flex items-center gap-2">
+            <span>✓</span>
+            <span>{uploadSuccess}</span>
+          </div>
+        )}
+
+        {uploadWarnings.length > 0 && (
+          <div className="p-4 bg-amber-50 border border-[#D97706] text-[#D97706] rounded-xl text-sm space-y-1">
+            <div className="font-bold flex items-center gap-1.5">
+              <span>⚠️</span> Extraction Notice:
+            </div>
+            <ul className="list-disc pl-5 space-y-0.5">
+              {uploadWarnings.map((w, idx) => (
+                <li key={idx}>{w}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -193,6 +322,11 @@ export default function NewContentPage() {
                     {hex} (Brand Approved)
                   </option>
                 ))}
+                {logoBg && !approvedLogoBgs.includes(logoBg) && (
+                  <option value={logoBg}>
+                    {logoBg} (Detected from Image)
+                  </option>
+                )}
                 <option value="#D32F2F">#D32F2F (Unapproved Red)</option>
                 <option value="#000000">#000000 (Black)</option>
               </select>
@@ -207,7 +341,7 @@ export default function NewContentPage() {
                   <input
                     id="fg"
                     type="color"
-                    value={fg}
+                    value={fg.startsWith("#") && fg.length === 7 ? fg : "#1E293B"}
                     onChange={(e) => setFg(e.target.value)}
                     className="h-10 w-16 p-1 border border-[#E2E8F0] rounded cursor-pointer"
                   />
@@ -223,7 +357,7 @@ export default function NewContentPage() {
                   <input
                     id="bg"
                     type="color"
-                    value={bg}
+                    value={bg.startsWith("#") && bg.length === 7 ? bg : "#FFFFFF"}
                     onChange={(e) => setBg(e.target.value)}
                     className="h-10 w-16 p-1 border border-[#E2E8F0] rounded cursor-pointer"
                   />
@@ -242,7 +376,7 @@ export default function NewContentPage() {
             </Link>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploading}
               className="px-6 py-2.5 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:ring-offset-2 transition disabled:opacity-50"
             >
               {loading ? "Creating..." : "Save & Review Draft"}
