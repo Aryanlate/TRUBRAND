@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import WordDiff from "@/components/WordDiff";
+import DismissibleToast from "@/components/Toast";
 import {
   Content,
   Finding,
@@ -167,7 +168,7 @@ export default function ContentDetailPage() {
       setAiError(res.ai_error);
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Review failed");
+      setError(err.message || "Review failed");
     } finally {
       setReviewing(false);
     }
@@ -180,7 +181,7 @@ export default function ContentDetailPage() {
     );
 
     if (acceptedFindings.length === 0) {
-      alert("No accepted suggestions to apply. Please accept one or more suggestions first.");
+      setError("No accepted suggestions to apply. Please accept one or more suggestions first.");
       return;
     }
 
@@ -209,7 +210,7 @@ export default function ContentDetailPage() {
 
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Failed to apply suggestions");
+      setError(err.message || "Failed to apply suggestions");
     } finally {
       setReviewing(false);
     }
@@ -221,7 +222,7 @@ export default function ContentDetailPage() {
       await apiRequest(`/content/${id}/submit`, { method: "POST" });
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Failed to submit for review");
+      setError(err.message || "Failed to submit for review");
     }
   };
 
@@ -238,7 +239,7 @@ export default function ContentDetailPage() {
       });
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Failed to update finding");
+      setError(err.message || "Failed to update finding");
     }
   };
 
@@ -254,7 +255,7 @@ export default function ContentDetailPage() {
       setEditingSuggestionFinding(null);
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Failed to update suggestion");
+      setError(err.message || "Failed to update suggestion");
     }
   };
 
@@ -275,7 +276,7 @@ export default function ContentDetailPage() {
       setCommentFindingId("");
       await loadContent();
     } catch (err: any) {
-      alert(err.message || "Failed to add comment");
+      setError(err.message || "Failed to add comment");
     } finally {
       setSubmittingComment(false);
     }
@@ -297,7 +298,7 @@ export default function ContentDetailPage() {
       setDecisionOverride(false);
       await loadContent();
     } catch (err: any) {
-      alert(err.message || `Failed to ${decision}`);
+      setError(err.message || `Failed to ${decision}`);
     } finally {
       setSubmittingDecision(false);
     }
@@ -383,14 +384,64 @@ export default function ContentDetailPage() {
   if (loading || !content) {
     return (
       <AppShell>
-        <div className="p-12 text-center text-slate-500 text-lg animate-pulse">Loading content details...</div>
+        <div className="space-y-6 max-w-full">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E2E8F0] pb-4 animate-pulse">
+            <div className="space-y-2">
+              <div className="h-4 bg-slate-200 rounded w-36" />
+              <div className="h-8 bg-slate-200 rounded w-64" />
+            </div>
+            <div className="h-8 bg-slate-200 rounded-lg w-32" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left Column Skeleton */}
+            <div className="lg:col-span-7 bg-white border border-[#E2E8F0] rounded-xl p-6 space-y-4 animate-pulse">
+              <div className="h-8 bg-slate-200 rounded w-48 mb-4" />
+              <div className="space-y-2.5">
+                <div className="h-4 bg-slate-200 rounded w-full" />
+                <div className="h-4 bg-slate-200 rounded w-5/6" />
+                <div className="h-4 bg-slate-200 rounded w-4/6" />
+                <div className="h-4 bg-slate-200 rounded w-full" />
+                <div className="h-4 bg-slate-200 rounded w-3/4" />
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <div className="h-10 bg-slate-200 rounded-lg w-28" />
+                <div className="h-10 bg-slate-200 rounded-lg w-48" />
+              </div>
+            </div>
+
+            {/* Right Column Skeleton */}
+            <div className="lg:col-span-5 space-y-6 animate-pulse">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 space-y-4">
+                <div className="h-5 bg-slate-200 rounded w-40" />
+                <div className="flex items-center gap-6">
+                  <div className="w-24 h-24 rounded-full bg-slate-200 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-slate-200 rounded w-full" />
+                    <div className="h-3 bg-slate-200 rounded w-full" />
+                    <div className="h-3 bg-slate-200 rounded w-full" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 space-y-3">
+                <div className="h-5 bg-slate-200 rounded w-32" />
+                <div className="h-20 bg-slate-100 rounded-lg" />
+                <div className="h-20 bg-slate-100 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        </div>
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-full">
+        {/* Dismissible Error Toast */}
+        <DismissibleToast message={error} onDismiss={() => setError(null)} />
+
         {/* Breadcrumb & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E2E8F0] pb-4">
           <div>
@@ -448,10 +499,11 @@ export default function ContentDetailPage() {
           </div>
         )}
         {aiError && (
-          <div className="p-3 bg-amber-50 border border-[#D97706] text-[#D97706] rounded-xl text-sm font-medium flex items-center gap-2">
-            <span>⚠️</span>
-            <span>AI notice: {aiError} (Rule-based checks executed successfully).</span>
-          </div>
+          <DismissibleToast
+            message={`AI notice: ${aiError} (Rule-based checks executed successfully).`}
+            onDismiss={() => setAiError(null)}
+            type="warning"
+          />
         )}
 
         {/* Two-Column Grid */}
@@ -519,12 +571,16 @@ export default function ContentDetailPage() {
                   {reviewing ? "Running review..." : "🔍 Run review"}
                 </button>
 
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-[#142D4E] bg-slate-50 px-3 py-2.5 rounded-lg border border-[#E2E8F0] hover:bg-slate-100 transition select-none">
+                <label
+                  htmlFor="mask_pii_toggle"
+                  className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-[#142D4E] bg-slate-50 px-3 py-2.5 rounded-lg border border-[#E2E8F0] hover:bg-slate-100 transition select-none"
+                >
                   <input
+                    id="mask_pii_toggle"
                     type="checkbox"
                     checked={maskPii}
                     onChange={(e) => setMaskPii(e.target.checked)}
-                    className="w-4 h-4 text-[#2563EB] rounded focus:ring-[#38BDF8]"
+                    className="w-4 h-4 text-[#2563EB] rounded focus:ring-2 focus:ring-[#38BDF8]"
                   />
                   <span>Mask personal data before AI</span>
                 </label>
@@ -533,7 +589,7 @@ export default function ContentDetailPage() {
                   type="button"
                   onClick={handleApplySuggestions}
                   disabled={reviewing}
-                  className="px-4 py-2.5 rounded-lg text-base font-semibold text-[#142D4E] bg-slate-100 hover:bg-slate-200 border border-[#E2E8F0] shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#2563EB] disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-lg text-base font-semibold text-[#142D4E] bg-slate-100 hover:bg-slate-200 border border-[#E2E8F0] shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                 >
                   ⚡ Apply accepted suggestions
                 </button>
@@ -542,7 +598,7 @@ export default function ContentDetailPage() {
                   <button
                     type="button"
                     onClick={handleSubmitForReview}
-                    className="px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                   >
                     ✓ Submit for review
                   </button>
@@ -623,7 +679,11 @@ export default function ContentDetailPage() {
 
               {versionFindings.length === 0 ? (
                 <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-xl text-slate-500 text-base">
-                  🎉 No compliance findings on this version.
+                  <span className="text-3xl block mb-2">🎉</span>
+                  <p className="font-semibold text-[#142D4E]">No compliance findings</p>
+                  <p className="text-sm text-slate-600 mt-1">
+                    This version adheres to all active brand guidelines and claims.
+                  </p>
                 </div>
               ) : (
                 versionFindings.map((f) => {
@@ -752,7 +812,7 @@ export default function ContentDetailPage() {
                             type="button"
                             onClick={() => handleFetchWhy(f.id!)}
                             disabled={loadingWhy[f.id!]}
-                            className="px-2.5 py-1 font-semibold rounded text-xs bg-sky-50 text-[#0284C7] hover:bg-sky-100 border border-sky-200 transition disabled:opacity-50"
+                            className="px-2.5 py-1 font-semibold rounded text-xs bg-sky-50 text-[#0284C7] hover:bg-sky-100 border border-sky-200 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                           >
                             {loadingWhy[f.id!] ? "Loading..." : whyExplanations[f.id!] ? "Hide explanation" : "💡 Why this?"}
                           </button>
@@ -761,7 +821,7 @@ export default function ContentDetailPage() {
                               <button
                                 type="button"
                                 onClick={() => handleUpdateFindingStatus(f.id!, "accepted")}
-                                className="px-3 py-1 font-semibold rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                                className="px-3 py-1 font-semibold rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                               >
                                 Accept
                               </button>
@@ -772,7 +832,7 @@ export default function ContentDetailPage() {
                                     setEditingSuggestionFinding(f);
                                     setEditSuggestionText(f.suggestion || "");
                                   }}
-                                  className="px-2.5 py-1 font-semibold rounded text-xs bg-slate-100 text-[#142D4E] hover:bg-slate-200 border border-slate-300 transition"
+                                  className="px-2.5 py-1 font-semibold rounded text-xs bg-slate-100 text-[#142D4E] hover:bg-slate-200 border border-slate-300 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                                 >
                                   Edit fix
                                 </button>
@@ -783,7 +843,7 @@ export default function ContentDetailPage() {
                                   setDismissModalFinding(f);
                                   setDismissReason("");
                                 }}
-                                className="px-3 py-1 font-semibold rounded text-xs bg-red-100 text-[#B91C1C] hover:bg-red-200 transition"
+                                className="px-3 py-1 font-semibold rounded text-xs bg-red-100 text-[#B91C1C] hover:bg-red-200 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                               >
                                 Dismiss
                               </button>
@@ -792,7 +852,7 @@ export default function ContentDetailPage() {
                             <button
                               type="button"
                               onClick={() => handleUpdateFindingStatus(f.id!, "open")}
-                              className="text-xs font-semibold text-[#2563EB] hover:underline"
+                              className="text-xs font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
                             >
                               Re-open
                             </button>
@@ -817,7 +877,11 @@ export default function ContentDetailPage() {
 
             <div className="space-y-3">
               {(content.comments || []).length === 0 ? (
-                <p className="text-sm text-slate-500 italic">No comments yet. Start the discussion below.</p>
+                <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-sm">
+                  <span className="text-2xl block mb-1">💬</span>
+                  <p className="font-medium text-slate-700">No review comments yet</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Start the conversation by sharing feedback below.</p>
+                </div>
               ) : (
                 content.comments?.map((cm) => (
                   <div key={cm.id} className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl space-y-1">
@@ -893,7 +957,7 @@ export default function ContentDetailPage() {
               <button
                 type="submit"
                 disabled={submittingComment}
-                className="px-4 py-2 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 transition disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
               >
                 {submittingComment ? "Posting..." : "Post comment"}
               </button>
@@ -921,7 +985,7 @@ export default function ContentDetailPage() {
                       value={decisionReason}
                       onChange={(e) => setDecisionReason(e.target.value)}
                       placeholder="Explain your approval rationale or describe required revisions..."
-                      className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg text-[#1E293B] bg-white focus:ring-2 focus:ring-[#2563EB]"
+                      className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg text-[#1E293B] bg-white focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                     />
                   </div>
 
@@ -934,7 +998,7 @@ export default function ContentDetailPage() {
                           type="checkbox"
                           checked={decisionOverride}
                           onChange={(e) => setDecisionOverride(e.target.checked)}
-                          className="w-4 h-4 text-[#B91C1C] rounded focus:ring-red-400"
+                          className="w-4 h-4 text-[#B91C1C] rounded focus:ring-2 focus:ring-red-400"
                         />
                         <label
                           htmlFor="override_blockers"
@@ -954,7 +1018,7 @@ export default function ContentDetailPage() {
                       type="button"
                       disabled={submittingDecision}
                       onClick={() => handleDecision("approve")}
-                      className="flex-1 py-2.5 px-4 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition disabled:opacity-50"
+                      className="flex-1 py-2.5 px-4 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                     >
                       ✓ Approve
                     </button>
@@ -962,7 +1026,7 @@ export default function ContentDetailPage() {
                       type="button"
                       disabled={submittingDecision}
                       onClick={() => handleDecision("request_changes")}
-                      className="flex-1 py-2.5 px-4 rounded-lg text-base font-semibold text-white bg-[#B91C1C] hover:bg-red-800 shadow-sm transition disabled:opacity-50"
+                      className="flex-1 py-2.5 px-4 rounded-lg text-base font-semibold text-white bg-[#B91C1C] hover:bg-red-800 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                     >
                       ✕ Request changes
                     </button>
@@ -1005,7 +1069,7 @@ export default function ContentDetailPage() {
               </p>
 
               <div>
-                <label htmlFor="dismiss_reason" className="block text-sm font-semibold mb-1">
+                <label htmlFor="dismiss_reason" className="block text-sm font-semibold mb-1 text-[#1E293B]">
                   Dismissal Reason *
                 </label>
                 <textarea
@@ -1015,7 +1079,7 @@ export default function ContentDetailPage() {
                   value={dismissReason}
                   onChange={(e) => setDismissReason(e.target.value)}
                   placeholder="Explain why this finding is dismissed or permitted..."
-                  className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg"
+                  className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 />
               </div>
 
@@ -1023,7 +1087,7 @@ export default function ContentDetailPage() {
                 <button
                   type="button"
                   onClick={() => setDismissModalFinding(null)}
-                  className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-semibold hover:bg-[#F8FAFC]"
+                  className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-semibold hover:bg-[#F8FAFC] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 >
                   Cancel
                 </button>
@@ -1034,7 +1098,7 @@ export default function ContentDetailPage() {
                     handleUpdateFindingStatus(dismissModalFinding.id!, "dismissed", dismissReason.trim());
                     setDismissModalFinding(null);
                   }}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#B91C1C] hover:bg-red-800 disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#B91C1C] hover:bg-red-800 disabled:opacity-50 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 >
                   Confirm Dismissal
                 </button>
@@ -1050,13 +1114,16 @@ export default function ContentDetailPage() {
               <h3 className="text-lg font-bold text-[#142D4E]">Edit Suggested Replacement</h3>
 
               <div>
-                <label className="block text-sm font-semibold mb-1">Replacement Text</label>
+                <label htmlFor="edit_suggestion_input" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                  Replacement Text
+                </label>
                 <input
+                  id="edit_suggestion_input"
                   type="text"
                   required
                   value={editSuggestionText}
                   onChange={(e) => setEditSuggestionText(e.target.value)}
-                  className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg"
+                  className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 />
               </div>
 
@@ -1064,14 +1131,14 @@ export default function ContentDetailPage() {
                 <button
                   type="button"
                   onClick={() => setEditingSuggestionFinding(null)}
-                  className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-semibold hover:bg-[#F8FAFC]"
+                  className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-semibold hover:bg-[#F8FAFC] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSaveSuggestion(editingSuggestionFinding)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#2563EB] hover:bg-blue-700"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#2563EB] hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                 >
                   Save Fix
                 </button>

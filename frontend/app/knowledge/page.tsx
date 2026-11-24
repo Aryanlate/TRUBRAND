@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { apiRequest, getStoredUser, User } from "@/lib/api";
+import DismissibleToast from "@/components/Toast";
 
 type TabKind = "rules" | "terms" | "facts" | "claims";
 
@@ -71,7 +72,7 @@ export default function KnowledgeBasePage() {
       await apiRequest(`/kb/${activeTab}/${id}`, { method: "DELETE" });
       loadData(activeTab);
     } catch (err: any) {
-      alert(err.message || "Failed to delete");
+      setError(err.message || "Failed to delete knowledge entry");
     }
   };
 
@@ -93,7 +94,7 @@ export default function KnowledgeBasePage() {
       setModalOpen(false);
       loadData(activeTab);
     } catch (err: any) {
-      alert(err.message || "Failed to save item");
+      setError(err.message || "Failed to save item");
     } finally {
       setSaving(false);
     }
@@ -125,18 +126,22 @@ export default function KnowledgeBasePage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-full">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#142D4E] tracking-tight">Knowledge Base</h1>
-            <p className="text-base text-slate-600 mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#142D4E] tracking-tight">
+              Knowledge Base
+            </h1>
+            <p className="text-sm sm:text-base text-slate-600 mt-1">
               Brand rules, approved terms, verified facts, and legal claims.
             </p>
           </div>
           {canWrite && (
             <button
+              type="button"
               onClick={handleOpenAdd}
-              className="inline-flex items-center px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:ring-offset-2"
             >
               + Add {activeTab.slice(0, -1)}
             </button>
@@ -151,17 +156,18 @@ export default function KnowledgeBasePage() {
         )}
 
         {/* Tab Navigation */}
-        <div className="border-b border-[#E2E8F0] flex gap-2">
+        <div className="border-b border-[#E2E8F0] flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {(["rules", "terms", "facts", "claims"] as TabKind[]).map((tab) => {
             const isActive = activeTab === tab;
             return (
               <button
                 key={tab}
+                type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`py-3 px-5 text-base font-semibold capitalize border-b-2 transition focus:outline-none ${
+                className={`py-2.5 px-4 sm:px-5 text-sm sm:text-base font-semibold capitalize border-b-2 whitespace-nowrap transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded-t-lg ${
                   isActive
-                    ? "border-[#2563EB] text-[#2563EB]"
-                    : "border-transparent text-slate-600 hover:text-[#142D4E]"
+                    ? "border-[#2563EB] text-[#2563EB] bg-blue-50/50"
+                    : "border-transparent text-slate-600 hover:text-[#142D4E] hover:bg-slate-50"
                 }`}
               >
                 {tab}
@@ -170,88 +176,117 @@ export default function KnowledgeBasePage() {
           })}
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-[#B91C1C] text-[#B91C1C] rounded-xl text-base font-medium">
-            {error}
-          </div>
-        )}
+        {/* Dismissible Error Toast */}
+        <DismissibleToast message={error} onDismiss={() => setError(null)} />
 
-        {/* Content Table */}
+        {/* Content Table & States */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500 text-base">Loading {activeTab}...</div>
+            <div className="overflow-x-auto p-4 sm:p-6 space-y-4">
+              <div className="h-6 bg-slate-200 rounded w-48 animate-pulse mb-4" />
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-100 rounded-lg animate-pulse"
+                  >
+                    <div className="space-y-1.5 flex-1 min-w-[120px]">
+                      <div className="h-4 bg-slate-200 rounded w-1/4" />
+                      <div className="h-3 bg-slate-200 rounded w-3/4" />
+                    </div>
+                    <div className="h-6 bg-slate-200 rounded-full w-20" />
+                    <div className="h-4 bg-slate-200 rounded w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : data.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 text-base">
-              No entries found in {activeTab}.
+            <div className="p-8 sm:p-12 text-center">
+              <div className="text-4xl mb-3">📚</div>
+              <h3 className="text-lg font-bold text-[#142D4E] capitalize">
+                No {activeTab} configured yet
+              </h3>
+              <p className="text-slate-600 mt-1 mb-6 text-sm sm:text-base max-w-md mx-auto">
+                Define approved brand {activeTab} to govern content checks and automated compliance.
+              </p>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={handleOpenAdd}
+                  className="inline-flex items-center px-4 py-2 text-base font-semibold text-white bg-[#2563EB] rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] focus:ring-offset-2"
+                >
+                  + Add {activeTab.slice(0, -1)}
+                </button>
+              )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <table className="min-w-full divide-y divide-[#E2E8F0] text-left">
                 <thead className="bg-[#F8FAFC]">
                   {activeTab === "rules" && (
                     <tr>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Category</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Title & Text</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Severity</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Examples</th>
-                      {canWrite && <th className="px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Category</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Title & Text</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Severity</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Examples</th>
+                      {canWrite && <th className="px-4 sm:px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
                     </tr>
                   )}
                   {activeTab === "terms" && (
                     <tr>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Type</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Term</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Replacement</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Severity</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Rule ID & Note</th>
-                      {canWrite && <th className="px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Type</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Term</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Replacement</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Rule ID</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Severity</th>
+                      {canWrite && <th className="px-4 sm:px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
                     </tr>
                   )}
                   {activeTab === "facts" && (
                     <tr>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Verified Statement</th>
-                      {canWrite && <th className="px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Fact Statement</th>
+                      {canWrite && <th className="px-4 sm:px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
                     </tr>
                   )}
                   {activeTab === "claims" && (
                     <tr>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Phrase</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Approved Evidence</th>
-                      <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Expires On</th>
-                      {canWrite && <th className="px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">ID</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Claim Phrase</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Evidence</th>
+                      <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Expires On</th>
+                      {canWrite && <th className="px-4 sm:px-6 py-3.5 text-right text-xs font-bold text-[#142D4E] uppercase">Actions</th>}
                     </tr>
                   )}
                 </thead>
-                <tbody className="divide-y divide-[#E2E8F0] bg-white text-base">
+                <tbody className="divide-y divide-[#E2E8F0] bg-white text-sm sm:text-base">
                   {data.map((item, idx) => (
-                    <tr key={item.id || idx} className="hover:bg-[#F8FAFC]">
+                    <tr key={item.id || idx} className="hover:bg-[#F8FAFC] transition">
                       {activeTab === "rules" && (
                         <>
-                          <td className="px-6 py-4 font-mono font-bold text-sm text-[#142D4E] whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 font-mono text-xs font-bold text-[#142D4E]">
                             {item.id}
                           </td>
-                          <td className="px-6 py-4 capitalize text-slate-700 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 capitalize text-slate-600">
                             {item.category}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-[#142D4E]">{item.title}</div>
-                            <div className="text-sm text-slate-600 mt-0.5">{item.text}</div>
+                          <td className="px-4 sm:px-6 py-4 max-w-sm">
+                            <p className="font-bold text-[#142D4E]">{item.title}</p>
+                            <p className="text-sm text-slate-600 mt-0.5 line-clamp-2">{item.text}</p>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             {renderSeverityBadge(item.severity)}
                           </td>
-                          <td className="px-6 py-4 text-xs space-y-1">
+                          <td className="px-4 sm:px-6 py-4 text-xs space-y-1">
                             {item.good && (
-                              <div className="text-emerald-700 font-medium">
-                                <span className="font-bold">Good:</span> "{item.good}"
+                              <div className="text-emerald-700">
+                                <strong>✓ Good:</strong> &ldquo;{item.good}&rdquo;
                               </div>
                             )}
                             {item.bad && (
-                              <div className="text-[#B91C1C] font-medium">
-                                <span className="font-bold">Bad:</span> "{item.bad}"
+                              <div className="text-red-700">
+                                <strong>✕ Bad:</strong> &ldquo;{item.bad}&rdquo;
                               </div>
                             )}
                           </td>
@@ -260,33 +295,32 @@ export default function KnowledgeBasePage() {
 
                       {activeTab === "terms" && (
                         <>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-800 uppercase">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-xs font-bold uppercase bg-slate-100 text-[#142D4E]">
                               {item.type}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-bold text-[#142D4E]">
-                            "{item.term}"
+                          <td className="px-4 sm:px-6 py-4 font-mono font-bold text-[#142D4E]">
+                            {item.term}
                           </td>
-                          <td className="px-6 py-4 text-emerald-700 font-semibold">
-                            {item.replacement ? `→ "${item.replacement}"` : "—"}
+                          <td className="px-4 sm:px-6 py-4 text-emerald-700 font-mono text-sm">
+                            {item.replacement || "—"}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 font-mono text-xs text-slate-500">
+                            {item.rule_id}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             {renderSeverityBadge(item.severity || "Warning")}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            <span className="font-mono font-semibold text-[#142D4E]">{item.rule_id}</span>
-                            {item.note && <div className="text-xs text-slate-500">{item.note}</div>}
                           </td>
                         </>
                       )}
 
                       {activeTab === "facts" && (
                         <>
-                          <td className="px-6 py-4 font-mono font-bold text-sm text-[#142D4E] whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 font-mono text-xs font-bold text-[#142D4E] whitespace-nowrap">
                             {item.id}
                           </td>
-                          <td className="px-6 py-4 text-[#1E293B]">
+                          <td className="px-4 sm:px-6 py-4 text-slate-800">
                             {item.statement}
                           </td>
                         </>
@@ -294,22 +328,22 @@ export default function KnowledgeBasePage() {
 
                       {activeTab === "claims" && (
                         <>
-                          <td className="px-6 py-4 font-mono font-bold text-sm text-[#142D4E] whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 font-mono text-xs font-bold text-[#142D4E] whitespace-nowrap">
                             {item.id}
                           </td>
-                          <td className="px-6 py-4 font-bold text-[#142D4E]">
-                            "{item.phrase}"
+                          <td className="px-4 sm:px-6 py-4 font-bold text-[#142D4E]">
+                            &ldquo;{item.phrase}&rdquo;
                           </td>
-                          <td className="px-6 py-4 text-sm text-slate-700">
+                          <td className="px-4 sm:px-6 py-4 text-sm text-slate-700">
                             {item.evidence || <span className="text-red-600 italic">No evidence recorded</span>}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             {item.expires_on ? (
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-mono text-slate-700">{item.expires_on}</span>
                                 {today && item.expires_on < today && (
-                                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-[#B91C1C] border border-[#B91C1C]">
-                                    Expired
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-[#B91C1C] border border-[#B91C1C]">
+                                    <span>⛔</span> Expired
                                   </span>
                                 )}
                               </div>
@@ -321,16 +355,18 @@ export default function KnowledgeBasePage() {
                       )}
 
                       {canWrite && (
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm">
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(item)}
-                            className="font-semibold text-[#2563EB] hover:underline mr-4"
+                            className="font-semibold text-[#2563EB] hover:underline mr-4 focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
                           >
                             Edit
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="font-semibold text-[#B91C1C] hover:underline"
+                            className="font-semibold text-[#B91C1C] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
                           >
                             Delete
                           </button>
@@ -346,8 +382,8 @@ export default function KnowledgeBasePage() {
 
         {/* Modal for Add / Edit */}
         {modalOpen && (
-          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xl max-w-lg w-full p-6 space-y-4">
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xl max-w-lg w-full p-6 space-y-4 my-8">
               <h2 className="text-xl font-bold text-[#142D4E]">
                 {editingItem ? `Edit ${activeTab.slice(0, -1)}` : `Add ${activeTab.slice(0, -1)}`}
               </h2>
@@ -356,23 +392,29 @@ export default function KnowledgeBasePage() {
                 {activeTab === "rules" && (
                   <>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Rule ID</label>
+                      <label htmlFor="kb_rule_id" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Rule ID
+                      </label>
                       <input
+                        id="kb_rule_id"
                         type="text"
                         required
                         disabled={!!editingItem}
                         value={formData.id || ""}
                         onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                         placeholder="e.g. R-2.5"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Category</label>
+                      <label htmlFor="kb_rule_cat" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Category
+                      </label>
                       <select
+                        id="kb_rule_cat"
                         value={formData.category || "tone"}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       >
                         <option value="tone">Tone</option>
                         <option value="messaging">Messaging</option>
@@ -383,36 +425,45 @@ export default function KnowledgeBasePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Title</label>
+                      <label htmlFor="kb_rule_title" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Title
+                      </label>
                       <input
+                        id="kb_rule_title"
                         type="text"
                         required
                         value={formData.title || ""}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                         placeholder="e.g. Warm and conversational"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Rule Text</label>
+                      <label htmlFor="kb_rule_text" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Rule Text
+                      </label>
                       <textarea
+                        id="kb_rule_text"
                         required
                         rows={3}
                         value={formData.text || ""}
                         onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Severity</label>
+                      <label htmlFor="kb_rule_sev" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Severity
+                      </label>
                       <select
+                        id="kb_rule_sev"
                         value={formData.severity || "Warning"}
                         onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       >
-                        <option value="Blocker">Blocker (#B91C1C)</option>
-                        <option value="Warning">Warning (#D97706)</option>
-                        <option value="Info">Info (#2563EB)</option>
+                        <option value="Blocker">Blocker (⛔ #B91C1C)</option>
+                        <option value="Warning">Warning (⚠️ #D97706)</option>
+                        <option value="Info">Info (ℹ️ #2563EB)</option>
                       </select>
                     </div>
                   </>
@@ -421,11 +472,14 @@ export default function KnowledgeBasePage() {
                 {activeTab === "terms" && (
                   <>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Term Type</label>
+                      <label htmlFor="kb_term_type" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Term Type
+                      </label>
                       <select
+                        id="kb_term_type"
                         value={formData.type || "banned"}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       >
                         <option value="banned">Banned</option>
                         <option value="replace">Replace</option>
@@ -433,47 +487,59 @@ export default function KnowledgeBasePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Term</label>
+                      <label htmlFor="kb_term_val" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Term
+                      </label>
                       <input
+                        id="kb_term_val"
                         type="text"
                         required
                         value={formData.term || ""}
                         onChange={(e) => setFormData({ ...formData, term: e.target.value })}
                         placeholder="e.g. cheapest"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Replacement</label>
+                      <label htmlFor="kb_term_repl" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Replacement
+                      </label>
                       <input
+                        id="kb_term_repl"
                         type="text"
                         value={formData.replacement || ""}
                         onChange={(e) => setFormData({ ...formData, replacement: e.target.value })}
                         placeholder="e.g. affordable"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Associated Rule ID</label>
+                      <label htmlFor="kb_term_rule_id" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Associated Rule ID
+                      </label>
                       <input
+                        id="kb_term_rule_id"
                         type="text"
                         required
                         value={formData.rule_id || ""}
                         onChange={(e) => setFormData({ ...formData, rule_id: e.target.value })}
                         placeholder="e.g. R-4.2"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Severity</label>
+                      <label htmlFor="kb_term_sev" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Severity
+                      </label>
                       <select
+                        id="kb_term_sev"
                         value={formData.severity || "Blocker"}
                         onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       >
-                        <option value="Blocker">Blocker</option>
-                        <option value="Warning">Warning</option>
-                        <option value="Info">Info</option>
+                        <option value="Blocker">Blocker (⛔ #B91C1C)</option>
+                        <option value="Warning">Warning (⚠️ #D97706)</option>
+                        <option value="Info">Info (ℹ️ #2563EB)</option>
                       </select>
                     </div>
                   </>
@@ -482,26 +548,32 @@ export default function KnowledgeBasePage() {
                 {activeTab === "facts" && (
                   <>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Fact ID</label>
+                      <label htmlFor="kb_fact_id" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Fact ID
+                      </label>
                       <input
+                        id="kb_fact_id"
                         type="text"
                         required
                         disabled={!!editingItem}
                         value={formData.id || ""}
                         onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                         placeholder="e.g. F-5"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Verified Statement</label>
+                      <label htmlFor="kb_fact_stmt" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Verified Statement
+                      </label>
                       <textarea
+                        id="kb_fact_stmt"
                         required
                         rows={4}
                         value={formData.statement || ""}
                         onChange={(e) => setFormData({ ...formData, statement: e.target.value })}
                         placeholder="Enter the official company fact statement..."
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                   </>
@@ -510,45 +582,57 @@ export default function KnowledgeBasePage() {
                 {activeTab === "claims" && (
                   <>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Claim ID</label>
+                      <label htmlFor="kb_claim_id" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Claim ID
+                      </label>
                       <input
+                        id="kb_claim_id"
                         type="text"
                         required
                         disabled={!!editingItem}
                         value={formData.id || ""}
                         onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                         placeholder="e.g. C-10"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Claim Phrase</label>
+                      <label htmlFor="kb_claim_phrase" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Claim Phrase
+                      </label>
                       <input
+                        id="kb_claim_phrase"
                         type="text"
                         required
                         value={formData.phrase || ""}
                         onChange={(e) => setFormData({ ...formData, phrase: e.target.value })}
                         placeholder="e.g. 100% recyclable"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Evidence Reference / Certificate</label>
+                      <label htmlFor="kb_claim_evidence" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Evidence Reference / Certificate
+                      </label>
                       <input
+                        id="kb_claim_evidence"
                         type="text"
                         value={formData.evidence || ""}
                         onChange={(e) => setFormData({ ...formData, evidence: e.target.value })}
                         placeholder="e.g. Certificate ISO-14021"
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-1">Expires On (YYYY-MM-DD)</label>
+                      <label htmlFor="kb_claim_expires" className="block text-sm font-semibold mb-1 text-[#1E293B]">
+                        Expires On (YYYY-MM-DD)
+                      </label>
                       <input
+                        id="kb_claim_expires"
                         type="date"
                         value={formData.expires_on || ""}
                         onChange={(e) => setFormData({ ...formData, expires_on: e.target.value })}
-                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base"
+                        className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       />
                     </div>
                   </>
@@ -558,14 +642,14 @@ export default function KnowledgeBasePage() {
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-base font-semibold hover:bg-[#F8FAFC]"
+                    className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-base font-semibold text-[#1E293B] hover:bg-[#F8FAFC] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-5 py-2 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50"
+                    className="px-5 py-2 rounded-lg text-base font-semibold text-white bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { apiRequest, getStoredUser } from "@/lib/api";
+import DismissibleToast from "@/components/Toast";
 import {
   BarChart,
   Bar,
@@ -79,24 +80,61 @@ export default function InsightsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-8">
+      <div className="space-y-8 max-w-full">
+        {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-[#142D4E] tracking-tight">Governance Insights</h1>
-          <p className="text-base text-slate-600 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#142D4E] tracking-tight">
+            Governance Insights
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-1">
             Rule performance, compliance trends, rule gaps, and expiring claim alerts.
           </p>
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-[#B91C1C] text-[#B91C1C] rounded-xl text-base font-medium flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Dismissible Error Toast */}
+        <DismissibleToast message={error} onDismiss={() => setError(null)} />
 
         {loading ? (
-          <div className="p-12 text-center text-slate-500 text-base animate-pulse">
-            Loading governance insights and compliance analytics...
+          <div className="space-y-8">
+            {/* Stat Cards Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-2 animate-pulse"
+                >
+                  <div className="h-3 bg-slate-200 rounded w-24" />
+                  <div className="h-8 bg-slate-200 rounded w-16" />
+                  <div className="h-3 bg-slate-200 rounded w-36" />
+                </div>
+              ))}
+            </div>
+
+            {/* Charts Skeleton */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-4 animate-pulse">
+                <div className="h-5 bg-slate-200 rounded w-48" />
+                <div className="h-3 bg-slate-200 rounded w-64" />
+                <div className="h-64 bg-slate-100 rounded-lg" />
+              </div>
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-4 animate-pulse">
+                <div className="h-5 bg-slate-200 rounded w-48" />
+                <div className="h-3 bg-slate-200 rounded w-64" />
+                <div className="h-64 bg-slate-100 rounded-lg" />
+              </div>
+            </div>
+
+            {/* Tables Skeleton */}
+            <div className="space-y-8">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 space-y-3 animate-pulse">
+                <div className="h-5 bg-slate-200 rounded w-40" />
+                <div className="h-28 bg-slate-100 rounded-lg" />
+              </div>
+              <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 space-y-3 animate-pulse">
+                <div className="h-5 bg-slate-200 rounded w-40" />
+                <div className="h-28 bg-slate-100 rounded-lg" />
+              </div>
+            </div>
           </div>
         ) : data ? (
           <>
@@ -154,20 +192,21 @@ export default function InsightsPage() {
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Bar Chart: Top Rules */}
-              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-4">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 sm:p-6 shadow-sm space-y-4 min-w-0">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-[#142D4E]">Top Rules by Finding Count</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-[#142D4E]">Top Rules by Finding Count</h2>
                     <p className="text-xs text-slate-500">Rules that generate the most findings across all reviews</p>
                   </div>
                 </div>
 
                 {data.top_rules.length === 0 ? (
-                  <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">
-                    No rule findings data available yet.
+                  <div className="h-[260px] sm:h-[280px] flex flex-col items-center justify-center text-slate-400 text-sm p-4 text-center">
+                    <span className="text-3xl mb-2">📊</span>
+                    <span>No rule findings data available yet.</span>
                   </div>
                 ) : (
-                  <div className="h-[300px] w-full pt-2">
+                  <div className="h-[280px] sm:h-[300px] w-full pt-2">
                     {mounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
@@ -177,10 +216,10 @@ export default function InsightsPage() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                           <XAxis
                             dataKey="rule_id"
-                            tick={{ fill: "#1E293B", fontSize: 12, fontWeight: 600 }}
+                            tick={{ fill: "#1E293B", fontSize: 11, fontWeight: 600 }}
                             interval={0}
                           />
-                          <YAxis tick={{ fill: "#64748B", fontSize: 12 }} />
+                          <YAxis tick={{ fill: "#64748B", fontSize: 11 }} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: "#FFFFFF",
@@ -210,20 +249,21 @@ export default function InsightsPage() {
               </div>
 
               {/* Line Chart: Average Score */}
-              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-4">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 sm:p-6 shadow-sm space-y-4 min-w-0">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-[#142D4E]">Average Brand Score Trend</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-[#142D4E]">Average Brand Score Trend</h2>
                     <p className="text-xs text-slate-500">Daily average score across content revisions</p>
                   </div>
                 </div>
 
                 {data.average_score_per_day.length === 0 ? (
-                  <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">
-                    No version review score data available yet.
+                  <div className="h-[260px] sm:h-[280px] flex flex-col items-center justify-center text-slate-400 text-sm p-4 text-center">
+                    <span className="text-3xl mb-2">📈</span>
+                    <span>No version review score data available yet.</span>
                   </div>
                 ) : (
-                  <div className="h-[300px] w-full pt-2">
+                  <div className="h-[280px] sm:h-[300px] w-full pt-2">
                     {mounted && (
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
@@ -233,11 +273,11 @@ export default function InsightsPage() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                           <XAxis
                             dataKey="date"
-                            tick={{ fill: "#1E293B", fontSize: 12, fontWeight: 600 }}
+                            tick={{ fill: "#1E293B", fontSize: 11, fontWeight: 600 }}
                           />
                           <YAxis
                             domain={[0, 100]}
-                            tick={{ fill: "#64748B", fontSize: 12 }}
+                            tick={{ fill: "#64748B", fontSize: 11 }}
                           />
                           <Tooltip
                             contentStyle={{
@@ -269,10 +309,10 @@ export default function InsightsPage() {
             <div className="space-y-8">
               {/* Gap Rules Table */}
               <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-[#E2E8F0]">
+                <div className="p-4 sm:p-6 border-b border-[#E2E8F0]">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">⚠️</span>
-                    <h2 className="text-lg font-bold text-[#142D4E]">Rule Gap Analysis</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-[#142D4E]">Rule Gap Analysis</h2>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
                     Rules with high dismissal rates (≥5 findings and ≥40% dismissed) suggesting ambiguity or friction.
@@ -281,38 +321,38 @@ export default function InsightsPage() {
 
                 {data.gap_rules.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-sm">
-                    🎉 No rule gaps detected. Rules have healthy acceptance rates.
+                    ✓ No rule gaps detected. Rules have healthy acceptance rates.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto w-full">
                     <table className="min-w-full divide-y divide-[#E2E8F0] text-left">
                       <thead className="bg-[#F8FAFC]">
                         <tr>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Rule ID</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Total Findings</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Dismissed</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Dismissal Rate</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Recommendation</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Rule ID</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Total Findings</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Dismissed</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Dismissal Rate</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Recommendation</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E2E8F0] bg-white text-base">
+                      <tbody className="divide-y divide-[#E2E8F0] bg-white text-sm sm:text-base">
                         {data.gap_rules.map((rule) => (
                           <tr key={rule.rule_id} className="hover:bg-[#F8FAFC]">
-                            <td className="px-6 py-4 font-mono font-bold text-[#142D4E] whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 font-mono font-bold text-[#142D4E] whitespace-nowrap">
                               {rule.rule_id}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-slate-700">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-slate-700">
                               {rule.total}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-[#B91C1C] font-semibold">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-[#B91C1C] font-semibold">
                               {rule.dismissed}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-[#D97706]">
                                 ⚠️ {Math.round(rule.dismissal_rate * 100)}%
                               </span>
                             </td>
-                            <td className="px-6 py-4 font-semibold text-[#142D4E]">
+                            <td className="px-4 sm:px-6 py-4 font-semibold text-[#142D4E]">
                               {rule.recommendation}
                             </td>
                           </tr>
@@ -325,10 +365,10 @@ export default function InsightsPage() {
 
               {/* Expiring Claims Table */}
               <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-[#E2E8F0]">
+                <div className="p-4 sm:p-6 border-b border-[#E2E8F0]">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">⏳</span>
-                    <h2 className="text-lg font-bold text-[#142D4E]">Expiring & Expired Claims</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-[#142D4E]">Expiring & Expired Claims</h2>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
                     Claims with certificates or evidence expiring within 30 days or already invalid.
@@ -340,40 +380,40 @@ export default function InsightsPage() {
                     ✓ All approved claims have active, up-to-date evidence certifications.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto w-full">
                     <table className="min-w-full divide-y divide-[#E2E8F0] text-left">
                       <thead className="bg-[#F8FAFC]">
                         <tr>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Claim ID</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Claim Phrase</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Evidence Reference</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Expires On</th>
-                          <th className="px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Status</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Claim ID</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Claim Phrase</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Evidence Reference</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Expires On</th>
+                          <th className="px-4 sm:px-6 py-3.5 text-xs font-bold text-[#142D4E] uppercase">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E2E8F0] bg-white text-base">
+                      <tbody className="divide-y divide-[#E2E8F0] bg-white text-sm sm:text-base">
                         {data.claims_expiring.map((claim) => (
                           <tr key={claim.id} className="hover:bg-[#F8FAFC]">
-                            <td className="px-6 py-4 font-mono font-bold text-[#142D4E] whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 font-mono font-bold text-[#142D4E] whitespace-nowrap">
                               {claim.id}
                             </td>
-                            <td className="px-6 py-4 font-bold text-[#142D4E]">
-                              "{claim.phrase}"
+                            <td className="px-4 sm:px-6 py-4 font-bold text-[#142D4E]">
+                              &ldquo;{claim.phrase}&rdquo;
                             </td>
-                            <td className="px-6 py-4 text-sm text-slate-700">
+                            <td className="px-4 sm:px-6 py-4 text-sm text-slate-700">
                               {claim.evidence || <span className="text-red-600 italic">No evidence recorded</span>}
                             </td>
-                            <td className="px-6 py-4 font-mono text-sm text-slate-700 whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 font-mono text-sm text-slate-700 whitespace-nowrap">
                               {claim.expires_on}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                               {claim.is_expired ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-[#B91C1C] border border-[#B91C1C]">
-                                  ⛔ Expired
+                                  <span>⛔</span> Expired
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-[#D97706] border border-[#D97706]">
-                                  ⚠️ Expiring in {claim.days_remaining} day{claim.days_remaining === 1 ? "" : "s"}
+                                  <span>⚠️</span> Expiring in {claim.days_remaining} day{claim.days_remaining === 1 ? "" : "s"}
                                 </span>
                               )}
                             </td>

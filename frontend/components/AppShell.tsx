@@ -66,8 +66,8 @@ export default function AppShell({ children }: AppShellProps) {
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B]">
       {/* Top Bar */}
       <header className="bg-[#142D4E] text-white shadow-sm border-b border-[#142D4E]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-0 min-h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-4">
             <Link
               href="/dashboard"
               className="text-2xl font-bold tracking-tight text-white focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
@@ -75,28 +75,41 @@ export default function AppShell({ children }: AppShellProps) {
               Tru<span className="text-[#38BDF8]">Brand</span>
             </Link>
 
-            <nav className="flex items-center gap-1 sm:gap-2">
-              {navLinks.map((link) => {
-                const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`px-3 py-1.5 rounded-lg text-sm sm:text-base font-medium transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] ${
-                      isActive
-                        ? "bg-[#2563EB] text-white"
-                        : "text-slate-200 hover:text-white hover:bg-[#1E3A63]"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
+            <div className="flex items-center gap-2 sm:hidden">
+              <span className="text-[11px] uppercase tracking-wider text-[#38BDF8] font-bold bg-[#1E3A63] px-2 py-0.5 rounded">
+                {user.role}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-2.5 py-1 rounded text-xs font-medium bg-[#1E3A63] text-white hover:bg-red-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+              >
+                Logout
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col text-right">
+          <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0 w-full sm:w-auto scrollbar-none">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-3 py-1.5 rounded-lg text-sm sm:text-base font-medium whitespace-nowrap transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] ${
+                    isActive
+                      ? "bg-[#2563EB] text-white"
+                      : "text-slate-200 hover:text-white hover:bg-[#1E3A63]"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="hidden sm:flex items-center gap-4">
+            <div className="flex flex-col text-right">
               <span className="text-sm font-semibold text-white leading-tight">{user.name}</span>
               <span className="text-xs uppercase tracking-wider text-[#38BDF8] font-bold">
                 {user.role}
@@ -104,8 +117,9 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
 
             <button
+              type="button"
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-lg text-sm sm:text-base font-medium bg-[#1E3A63] text-white hover:bg-red-700 transition focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="px-3 py-1.5 rounded-lg text-sm sm:text-base font-medium bg-[#1E3A63] text-white hover:bg-red-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
             >
               Logout
             </button>

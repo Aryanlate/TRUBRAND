@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { apiRequest } from "@/lib/api";
+import DismissibleToast from "@/components/Toast";
 
 export default function NewContentPage() {
   const router = useRouter();
@@ -159,12 +160,8 @@ export default function NewContentPage() {
           </Link>
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-[#B91C1C] text-[#B91C1C] rounded-xl text-base font-medium flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Dismissible Error Toast */}
+        <DismissibleToast message={error} onDismiss={() => setError(null)} />
 
         {/* Drag and Drop Upload Box */}
         <div
@@ -187,6 +184,7 @@ export default function NewContentPage() {
           <input
             ref={fileInputRef}
             type="file"
+            aria-label="Upload document or image file"
             accept=".txt,.pdf,.docx,.png,.jpg,.jpeg"
             className="hidden"
             onChange={(e) => {

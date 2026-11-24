@@ -177,7 +177,7 @@ export default function BrandAssistant() {
                         key={idx}
                         type="button"
                         onClick={() => handleSend(q)}
-                        className="w-full text-left text-xs font-medium p-2 rounded-lg bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:text-[#2563EB] text-[#1E293B] transition"
+                        className="w-full text-left text-xs font-medium p-2 rounded-lg bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:text-[#2563EB] text-[#1E293B] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
                       >
                         {q}
                       </button>
@@ -269,18 +269,23 @@ export default function BrandAssistant() {
             }}
             className="p-3 bg-white border-t border-[#E2E8F0] flex gap-2"
           >
+            <label htmlFor="assistant_question_input" className="sr-only">
+              Ask a brand question
+            </label>
             <input
+              id="assistant_question_input"
               ref={inputRef}
               type="text"
+              aria-label="Ask a brand question"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Ask a brand rule question..."
-              className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+              className="flex-1 px-3 py-2 text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
             />
             <button
               type="submit"
               disabled={sending || !inputValue.trim()}
-              className="px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-semibold text-sm transition disabled:opacity-50"
+              className="px-3 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-semibold text-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
             >
               Send
             </button>

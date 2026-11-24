@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest, setAuth } from "@/lib/api";
+import DismissibleToast from "@/components/Toast";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -51,15 +52,7 @@ export default function LoginPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 shadow-sm border border-[#E2E8F0] rounded-xl sm:px-10">
           <form className="space-y-6" onSubmit={handleLogin}>
-            {error && (
-              <div
-                role="alert"
-                className="p-3 bg-red-50 border border-[#B91C1C] text-[#B91C1C] rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <span>⚠️</span>
-                <span>{error}</span>
-              </div>
-            )}
+            <DismissibleToast message={error} onDismiss={() => setError(null)} />
 
             <div>
               <label
@@ -119,21 +112,21 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => quickFill("creator@demo.com")}
-                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
               >
                 Creator
               </button>
               <button
                 type="button"
                 onClick={() => quickFill("reviewer@demo.com")}
-                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
               >
                 Reviewer
               </button>
               <button
                 type="button"
                 onClick={() => quickFill("manager@demo.com")}
-                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                className="px-3 py-2 text-sm font-medium border border-[#E2E8F0] rounded-lg bg-[#F8FAFC] text-[#142D4E] hover:bg-[#E2E8F0] transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
               >
                 Manager
               </button>

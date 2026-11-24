@@ -123,13 +123,13 @@ export default function ApprovalReportPage() {
       <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between no-print">
         <Link
           href={`/content/${id}`}
-          className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm hover:bg-slate-50 transition"
+          className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm hover:bg-slate-50 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         >
           ← Back to Content
         </Link>
         <button
           onClick={handlePrint}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg shadow-sm transition cursor-pointer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg shadow-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
