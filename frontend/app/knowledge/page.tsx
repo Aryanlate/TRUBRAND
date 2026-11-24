@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { apiRequest, getStoredUser, User } from "@/lib/api";
 import DismissibleToast from "@/components/Toast";
@@ -209,7 +210,7 @@ export default function KnowledgeBasePage() {
               <p className="text-slate-600 mt-1 mb-6 text-sm sm:text-base max-w-md mx-auto">
                 Define approved brand {activeTab} to govern content checks and automated compliance.
               </p>
-              {canWrite && (
+              {canWrite ? (
                 <button
                   type="button"
                   onClick={handleOpenAdd}
@@ -217,6 +218,13 @@ export default function KnowledgeBasePage() {
                 >
                   + Add {activeTab.slice(0, -1)}
                 </button>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center px-4 py-2 text-base font-semibold text-[#142D4E] bg-slate-100 border border-[#E2E8F0] rounded-lg hover:bg-slate-200 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                >
+                  Return to Dashboard
+                </Link>
               )}
             </div>
           ) : (

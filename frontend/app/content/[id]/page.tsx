@@ -684,6 +684,26 @@ export default function ContentDetailPage() {
                   <p className="text-sm text-slate-600 mt-1">
                     This version adheres to all active brand guidelines and claims.
                   </p>
+                  <div className="mt-4">
+                    {content.state === "Reviewed" && isCreatorOrPrivileged ? (
+                      <button
+                        type="button"
+                        onClick={handleSubmitForReview}
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                      >
+                        ✓ Submit this version for review
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleRunReview}
+                        disabled={reviewing}
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#2563EB] hover:bg-blue-700 rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
+                      >
+                        {reviewing ? "Running review..." : "Run review again"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 versionFindings.map((f) => {
@@ -881,6 +901,16 @@ export default function ContentDetailPage() {
                   <span className="text-2xl block mb-1">💬</span>
                   <p className="font-medium text-slate-700">No review comments yet</p>
                   <p className="text-xs text-slate-500 mt-0.5">Start the conversation by sharing feedback below.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById("comment_text");
+                      el?.focus();
+                    }}
+                    className="mt-3 inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#2563EB] bg-white border border-[#2563EB] rounded-lg hover:bg-blue-50 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                  >
+                    + Leave first comment
+                  </button>
                 </div>
               ) : (
                 content.comments?.map((cm) => (

@@ -365,9 +365,15 @@ export default function ApprovalReportPage() {
             Governance Decision Trail
           </h2>
           {approvals.length === 0 ? (
-            <p className="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-200">
-              No formal approval decisions recorded yet.
-            </p>
+            <div className="text-xs text-slate-500 p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span>No formal approval decisions recorded yet.</span>
+              <Link
+                href={`/content/${content.id}`}
+                className="no-print font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
+              >
+                Go to Review Workspace →
+              </Link>
+            </div>
           ) : (
             <div className="space-y-3">
               {approvals.map((ap) => (

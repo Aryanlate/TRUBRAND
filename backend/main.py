@@ -18,12 +18,13 @@ import assistant
 from privacy import mask_pii, unmask_text
 from extract import extract_content
 from auth import verify_password, create_token, get_user, require_role
-from seed import seed_if_empty
+from seed import seed_if_empty, seed_demo_history
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
     seed_if_empty()
+    seed_demo_history()
     yield
 
 app = FastAPI(title="TruBrand API", lifespan=lifespan)

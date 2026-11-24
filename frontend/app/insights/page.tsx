@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { apiRequest, getStoredUser } from "@/lib/api";
 import DismissibleToast from "@/components/Toast";
@@ -204,6 +205,12 @@ export default function InsightsPage() {
                   <div className="h-[260px] sm:h-[280px] flex flex-col items-center justify-center text-slate-400 text-sm p-4 text-center">
                     <span className="text-3xl mb-2">📊</span>
                     <span>No rule findings data available yet.</span>
+                    <Link
+                      href="/dashboard"
+                      className="mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                    >
+                      Review content in Dashboard
+                    </Link>
                   </div>
                 ) : (
                   <div className="h-[280px] sm:h-[300px] w-full pt-2">
@@ -261,6 +268,12 @@ export default function InsightsPage() {
                   <div className="h-[260px] sm:h-[280px] flex flex-col items-center justify-center text-slate-400 text-sm p-4 text-center">
                     <span className="text-3xl mb-2">📈</span>
                     <span>No version review score data available yet.</span>
+                    <Link
+                      href="/content/new"
+                      className="mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                    >
+                      Create and review content
+                    </Link>
                   </div>
                 ) : (
                   <div className="h-[280px] sm:h-[300px] w-full pt-2">
@@ -321,7 +334,13 @@ export default function InsightsPage() {
 
                 {data.gap_rules.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-sm">
-                    ✓ No rule gaps detected. Rules have healthy acceptance rates.
+                    <p className="font-semibold text-slate-700">✓ No rule gaps detected. Rules have healthy acceptance rates.</p>
+                    <Link
+                      href="/knowledge"
+                      className="mt-2 inline-block text-xs font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
+                    >
+                      View Knowledge Base Rules →
+                    </Link>
                   </div>
                 ) : (
                   <div className="overflow-x-auto w-full">
@@ -377,7 +396,13 @@ export default function InsightsPage() {
 
                 {data.claims_expiring.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-sm">
-                    ✓ All approved claims have active, up-to-date evidence certifications.
+                    <p className="font-semibold text-slate-700">✓ All approved claims have active, up-to-date evidence certifications.</p>
+                    <Link
+                      href="/knowledge"
+                      className="mt-2 inline-block text-xs font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
+                    >
+                      Manage Claims in Knowledge Base →
+                    </Link>
                   </div>
                 ) : (
                   <div className="overflow-x-auto w-full">
