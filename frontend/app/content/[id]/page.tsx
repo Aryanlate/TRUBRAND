@@ -47,6 +47,34 @@ export default function ContentDetailPage() {
   const [dismissReason, setDismissReason] = useState("");
   const [editingSuggestionFinding, setEditingSuggestionFinding] = useState<Finding | null>(null);
   const [editSuggestionText, setEditSuggestionText] = useState("");
+  const [whyExplanations, setWhyExplanations] = useState<Record<string, string>>({});
+  const [loadingWhy, setLoadingWhy] = useState<Record<string, boolean>>({});
+
+  const handleFetchWhy = async (findingId: string) => {
+    if (whyExplanations[findingId]) {
+      setWhyExplanations((prev) => {
+        const copy = { ...prev };
+        delete copy[findingId];
+        return copy;
+      });
+      return;
+    }
+
+    setLoadingWhy((prev) => ({ ...prev, [findingId]: true }));
+    try {
+      const res = await apiRequest<{ explanation: string }>(`/findings/${findingId}/why`, {
+        method: "POST",
+      });
+      setWhyExplanations((prev) => ({ ...prev, [findingId]: res.explanation }));
+    } catch (err: any) {
+      setWhyExplanations((prev) => ({
+        ...prev,
+        [findingId]: err?.message || "Failed to retrieve rationale.",
+      }));
+    } finally {
+      setLoadingWhy((prev) => ({ ...prev, [findingId]: false }));
+    }
+  };
 
   // Comments
   const [commentText, setCommentText] = useState("");
@@ -681,6 +709,16 @@ export default function ContentDetailPage() {
                         </div>
                       )}
 
+                      {/* Inline Why Explanation */}
+                      {whyExplanations[f.id!] && (
+                        <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-xs space-y-1 text-slate-800 animate-in fade-in duration-150">
+                          <div className="font-bold text-[#0284C7] flex items-center gap-1">
+                            <span>💡 Why this suggestion was made:</span>
+                          </div>
+                          <p className="text-sm leading-relaxed text-[#1E293B]">{whyExplanations[f.id!]}</p>
+                        </div>
+                      )}
+
                       {/* Card Actions */}
                       <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] text-sm">
                         <span className="text-xs font-semibold text-slate-500">
@@ -688,6 +726,14 @@ export default function ContentDetailPage() {
                         </span>
 
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleFetchWhy(f.id!)}
+                            disabled={loadingWhy[f.id!]}
+                            className="px-2.5 py-1 font-semibold rounded text-xs bg-sky-50 text-[#0284C7] hover:bg-sky-100 border border-sky-200 transition disabled:opacity-50"
+                          >
+                            {loadingWhy[f.id!] ? "Loading..." : whyExplanations[f.id!] ? "Hide explanation" : "💡 Why this?"}
+                          </button>
                           {f.status === "open" ? (
                             <>
                               <button

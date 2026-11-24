@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { User, getStoredToken, getStoredUser, clearAuth } from "@/lib/api";
+import BrandAssistant from "@/components/BrandAssistant";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -111,6 +112,9 @@ export default function AppShell({ children }: AppShellProps) {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+
+      {/* Floating Brand Assistant */}
+      <BrandAssistant />
     </div>
   );
 }

@@ -14,6 +14,7 @@ load_dotenv()
 import db
 import llm
 import review
+import assistant
 from extract import extract_content
 from auth import verify_password, create_token, get_user, require_role
 from seed import seed_if_empty
@@ -691,3 +692,107 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_use
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"File extraction failed: {str(e)}")
+
+# --- Assistant & Explanation Endpoints ---
+
+@app.post("/findings/{id}/why")
+def get_finding_why(id: str, user: dict = Depends(get_user)):
+    rows = db.query("SELECT data FROM findings WHERE id = ?", (id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    
+    try:
+        fd = json.loads(rows[0]["data"]) if isinstance(rows[0]["data"], str) else (rows[0]["data"] or {})
+    except Exception:
+        fd = {}
+    
+    rule_id = fd.get("rule_id")
+    if not rule_id:
+        return {"explanation": "No supporting source found"}
+
+    source_row = db.query("SELECT kind, data FROM kb_items WHERE id = ?", (rule_id,))
+    if not source_row:
+        return {"explanation": "No supporting source found"}
+
+    try:
+        source_data = json.loads(source_row[0]["data"])
+        kind = source_row[0]["kind"]
+        if kind == "rule":
+            text = f"{source_data.get('title')}: {source_data.get('text')}"
+        elif kind == "fact":
+            text = source_data.get("statement", "")
+        elif kind == "claim":
+            text = f"Approved claim '{source_data.get('phrase')}', evidence: {source_data.get('evidence')}"
+        else:
+            text = json.dumps(source_data)
+    except Exception:
+        text = rule_id
+
+    explanation, provider = assistant.explain_finding(fd, {"id": rule_id, "text": text})
+    return {"explanation": explanation}
+
+class AssistantQuestionRequest(BaseModel):
+    question: str
+    content_id: Optional[str] = None
+
+@app.post("/assistant")
+def chat_assistant(req: AssistantQuestionRequest, user: dict = Depends(get_user)):
+    if not req.question or not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    open_findings = []
+    if req.content_id:
+        content_rows = db.query("SELECT current_version FROM content WHERE id = ?", (req.content_id,))
+        if content_rows:
+            cur_ver = content_rows[0]["current_version"]
+            f_rows = db.query(
+                "SELECT data FROM findings WHERE content_id = ? AND version_number = ? AND status = 'open'",
+                (req.content_id, cur_ver)
+            )
+            for fr in f_rows:
+                try:
+                    open_findings.append(json.loads(fr["data"]))
+                except Exception:
+                    pass
+
+    kb = load_kb()
+    answer, source_ids, grounded, provider = assistant.answer_brand_question(
+        req.question.strip(),
+        kb,
+        open_findings=open_findings
+    )
+
+    msg_id = str(uuid.uuid4())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO assistant_messages (id, user_id, content_id, question, answer, cited_ids, grounded, feedback, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)",
+        (msg_id, user["id"], req.content_id, req.question.strip(), answer, json.dumps(source_ids), 1 if grounded else 0, now)
+    )
+
+    db.audit(
+        user["email"],
+        "assistant_query",
+        f"assistant_message:{msg_id}",
+        {"question": req.question.strip(), "grounded": grounded, "sources_count": len(source_ids)},
+        services=provider or ""
+    )
+
+    return {
+        "id": msg_id,
+        "answer": answer,
+        "source_ids": source_ids,
+        "grounded": grounded,
+        "created_at": now
+    }
+
+class AssistantFeedbackRequest(BaseModel):
+    feedback: str
+
+@app.patch("/assistant/{id}")
+def update_assistant_feedback(id: str, req: AssistantFeedbackRequest, user: dict = Depends(get_user)):
+    rows = db.query("SELECT id FROM assistant_messages WHERE id = ?", (id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Assistant message not found")
+    
+    db.execute("UPDATE assistant_messages SET feedback = ? WHERE id = ?", (req.feedback, id))
+    return {"id": id, "feedback": req.feedback}
