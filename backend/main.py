@@ -548,3 +548,123 @@ def content_decision(id: str, req: DecisionRequest, user: dict = Depends(get_use
 def get_audit(user: dict = Depends(require_role("manager", "admin"))):
     rows = db.query("SELECT * FROM audit ORDER BY created_at DESC LIMIT 200")
     return rows
+
+@app.get("/insights")
+def get_insights(user: dict = Depends(require_role("manager", "admin"))):
+    # 1. Findings analysis for top rules and categories
+    finding_rows = db.query("SELECT data, status FROM findings")
+    rule_stats = {}
+    category_counts = {}
+
+    for row in finding_rows:
+        try:
+            fd = json.loads(row["data"]) if isinstance(row["data"], str) else (row["data"] or {})
+        except Exception:
+            fd = {}
+        
+        rule_id = fd.get("rule_id") or "Unknown"
+        cat = fd.get("category") or "general"
+
+        if rule_id not in rule_stats:
+            rule_stats[rule_id] = {"rule_id": rule_id, "total": 0, "dismissed": 0}
+        rule_stats[rule_id]["total"] += 1
+        if row["status"] == "dismissed":
+            rule_stats[rule_id]["dismissed"] += 1
+
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    top_rules = []
+    for r_id, s in rule_stats.items():
+        total = s["total"]
+        dismissed = s["dismissed"]
+        rate = round(dismissed / total, 3) if total > 0 else 0.0
+        top_rules.append({
+            "rule_id": r_id,
+            "total": total,
+            "dismissed": dismissed,
+            "dismissal_rate": rate
+        })
+    top_rules.sort(key=lambda x: x["total"], reverse=True)
+
+    # 2. Gap rules: total >= 5 and dismissal_rate >= 0.4
+    gap_rules = []
+    for r in top_rules:
+        if r["total"] >= 5 and r["dismissal_rate"] >= 0.4:
+            gap_item = dict(r)
+            gap_item["recommendation"] = "Add examples or rewrite this rule"
+            gap_rules.append(gap_item)
+
+    # 3. Override count from approvals
+    override_res = db.query("SELECT COUNT(*) as c FROM approvals WHERE override IS NOT NULL AND TRIM(override) != ''")
+    override_count = override_res[0]["c"] if override_res else 0
+
+    # 4. Average score per day from versions.score
+    version_rows = db.query("SELECT score, created_at FROM versions WHERE score IS NOT NULL")
+    day_scores = {}
+    for vr in version_rows:
+        try:
+            score_data = json.loads(vr["score"]) if isinstance(vr["score"], str) else vr["score"]
+            overall = score_data.get("overall") if isinstance(score_data, dict) else None
+        except Exception:
+            overall = None
+        
+        if overall is not None:
+            day = vr["created_at"][:10] if vr["created_at"] else "Unknown"
+            if day not in day_scores:
+                day_scores[day] = []
+            day_scores[day].append(float(overall))
+
+    average_score_per_day = []
+    for day in sorted(day_scores.keys()):
+        scores = day_scores[day]
+        avg = round(sum(scores) / len(scores), 1) if scores else 0.0
+        average_score_per_day.append({
+            "date": day,
+            "average_score": avg,
+            "count": len(scores)
+        })
+
+    # 5. Claims expiring within 30 days or already expired
+    claim_rows = db.query("SELECT data FROM kb_items WHERE kind = 'claim'")
+    today = datetime.date.today()
+    threshold = today + datetime.timedelta(days=30)
+    claims_expiring = []
+
+    for cr in claim_rows:
+        try:
+            c = json.loads(cr["data"]) if isinstance(cr["data"], str) else (cr["data"] or {})
+        except Exception:
+            c = {}
+        
+        exp_str = c.get("expires_on")
+        if exp_str:
+            try:
+                exp_date = datetime.date.fromisoformat(exp_str)
+                if exp_date <= threshold:
+                    days_remaining = (exp_date - today).days
+                    claims_expiring.append({
+                        "id": c.get("id"),
+                        "phrase": c.get("phrase", ""),
+                        "evidence": c.get("evidence", ""),
+                        "expires_on": exp_str,
+                        "days_remaining": days_remaining,
+                        "is_expired": days_remaining < 0
+                    })
+            except Exception:
+                pass
+    claims_expiring.sort(key=lambda x: x["expires_on"])
+
+    # 6. Most frequent categories
+    most_frequent_categories = [
+        {"category": cat, "count": cnt}
+        for cat, cnt in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    return {
+        "top_rules": top_rules,
+        "gap_rules": gap_rules,
+        "override_count": override_count,
+        "average_score_per_day": average_score_per_day,
+        "claims_expiring": claims_expiring,
+        "most_frequent_categories": most_frequent_categories
+    }
