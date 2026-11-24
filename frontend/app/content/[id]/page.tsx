@@ -36,6 +36,7 @@ export default function ContentDetailPage() {
 
   // Review states & banners
   const [reviewing, setReviewing] = useState(false);
+  const [maskPii, setMaskPii] = useState(true);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -157,7 +158,10 @@ export default function ContentDetailPage() {
         score: Score;
         provider: string | null;
         ai_error: string | null;
-      }>(`/content/${id}/review`, { method: "POST" });
+      }>(`/content/${id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ mask_pii: maskPii }),
+      });
 
       setActiveProvider(res.provider);
       setAiError(res.ai_error);
@@ -418,12 +422,20 @@ export default function ContentDetailPage() {
             </div>
           </div>
 
-          <Link
-            href="/dashboard"
-            className="text-base font-semibold text-[#2563EB] hover:underline"
-          >
-            ← Back to dashboard
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/content/${content.id}/report`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white border border-[#E2E8F0] text-[#142D4E] hover:bg-slate-50 shadow-sm transition"
+            >
+              📄 Approval Report
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-base font-semibold text-[#2563EB] hover:underline"
+            >
+              ← Back to dashboard
+            </Link>
+          </div>
         </div>
 
         {/* AI & Provider Banner */}
@@ -497,7 +509,7 @@ export default function ContentDetailPage() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 pt-3 border-t border-[#E2E8F0]">
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[#E2E8F0]">
                 <button
                   type="button"
                   onClick={handleRunReview}
@@ -506,6 +518,16 @@ export default function ContentDetailPage() {
                 >
                   {reviewing ? "Running review..." : "🔍 Run review"}
                 </button>
+
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-[#142D4E] bg-slate-50 px-3 py-2.5 rounded-lg border border-[#E2E8F0] hover:bg-slate-100 transition select-none">
+                  <input
+                    type="checkbox"
+                    checked={maskPii}
+                    onChange={(e) => setMaskPii(e.target.checked)}
+                    className="w-4 h-4 text-[#2563EB] rounded focus:ring-[#38BDF8]"
+                  />
+                  <span>Mask personal data before AI</span>
+                </label>
 
                 <button
                   type="button"

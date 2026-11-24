@@ -15,6 +15,7 @@ import db
 import llm
 import review
 import assistant
+from privacy import mask_pii, unmask_text
 from extract import extract_content
 from auth import verify_password, create_token, get_user, require_role
 from seed import seed_if_empty
@@ -269,9 +270,72 @@ def get_content(id: str, user: dict = Depends(get_user)):
     res["approvals"] = [dict(ap) for ap in approvals]
     return res
 
+@app.get("/content/{id}/report-data")
+def get_content_report_data(id: str, user: dict = Depends(get_user)):
+    contents = db.query(
+        "SELECT c.*, u.name as creator_name, u.email as creator_email FROM content c LEFT JOIN users u ON c.creator_id = u.id WHERE c.id = ?",
+        (id,)
+    )
+    if not contents:
+        raise HTTPException(status_code=404, detail="Content not found")
+    c = contents[0]
+    if user["role"] == "creator" and c["creator_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    raw_versions = db.query("SELECT * FROM versions WHERE content_id = ? ORDER BY number ASC", (id,))
+    versions = []
+    for v in raw_versions:
+        vd = dict(v)
+        try:
+            vd["meta"] = json.loads(vd["meta"]) if vd["meta"] else {}
+        except Exception:
+            pass
+        try:
+            vd["score"] = json.loads(vd["score"]) if vd["score"] else None
+        except Exception:
+            pass
+        versions.append(vd)
+
+    raw_findings = db.query("SELECT * FROM findings WHERE content_id = ? ORDER BY version_number ASC", (id,))
+    findings = []
+    for f in raw_findings:
+        fd = dict(f)
+        try:
+            parsed = json.loads(fd["data"]) if isinstance(fd["data"], str) else fd["data"]
+            if isinstance(parsed, dict):
+                for k, val in parsed.items():
+                    if k not in fd or fd[k] is None:
+                        fd[k] = val
+                fd["data"] = parsed
+        except Exception:
+            pass
+        findings.append(fd)
+
+    comments = db.query(
+        "SELECT c.*, u.name as author_name, u.role as author_role FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.content_id = ? ORDER BY c.created_at ASC",
+        (id,)
+    )
+    approvals = db.query(
+        "SELECT a.*, u.name as reviewer_name, u.role as reviewer_role FROM approvals a LEFT JOIN users u ON a.reviewer_id = u.id WHERE a.content_id = ? ORDER BY a.created_at ASC",
+        (id,)
+    )
+
+    audit_rows = db.query("SELECT DISTINCT services FROM audit WHERE object LIKE ? AND services != ''", (f"content:{id}%",))
+    services_used = [r["services"] for r in audit_rows if r.get("services")]
+
+    return {
+        "content": dict(c),
+        "version_history": versions,
+        "versions": versions,
+        "findings": findings,
+        "comments": [dict(cm) for cm in comments],
+        "approvals": [dict(ap) for ap in approvals],
+        "services_used": services_used,
+    }
+
 class ReviewContentRequest(BaseModel):
     provider: Optional[str] = None
-    mask_pii: Optional[bool] = False
+    mask_pii: Optional[bool] = True
 
 @app.post("/content/{id}/review")
 def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: dict = Depends(get_user)):
@@ -290,12 +354,29 @@ def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: di
     body = v["body"]
     meta = json.loads(v["meta"]) if v["meta"] else {}
 
+    # Handle PII masking (default: True)
+    should_mask = True if req is None or req.mask_pii is None else req.mask_pii
+    text_to_review = body
+    pii_map = {}
+    if should_mask:
+        text_to_review, pii_map = mask_pii(body)
+
     preferred = req.provider if req else None
-    result = review.review(body, load_kb(), meta, preferred=preferred)
+    result = review.review(text_to_review, load_kb(), meta, preferred=preferred)
     findings = result["findings"]
     score = result["score"]
     provider = result["provider"]
     ai_error = result["ai_error"]
+
+    # Restore placeholders in returned finding quotes and suggestions
+    if should_mask and pii_map:
+        for f in findings:
+            if f.get("quote"):
+                f["quote"] = unmask_text(f["quote"], pii_map)
+            if f.get("suggestion"):
+                f["suggestion"] = unmask_text(f["suggestion"], pii_map)
+            if f.get("explanation"):
+                f["explanation"] = unmask_text(f["explanation"], pii_map)
 
     # delete previous findings of that version
     db.execute("DELETE FROM findings WHERE content_id = ? AND version_number = ?", (id, ver_num))
@@ -319,8 +400,12 @@ def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: di
     # set state Reviewed
     db.execute("UPDATE content SET state = 'Reviewed' WHERE id = ?", (id,))
 
-    # write audit with services=provider
-    db.audit(user["email"], "review", f"content:{id}:v{ver_num}", {"overall_score": score.get("overall"), "findings_count": len(findings)}, services=provider or "")
+    # write audit with services ("pii_masked" recorded when active)
+    services_field = provider or ""
+    if should_mask:
+        services_field = f"{services_field}:pii_masked" if services_field else "pii_masked"
+
+    db.audit(user["email"], "review", f"content:{id}:v{ver_num}", {"overall_score": score.get("overall"), "findings_count": len(findings), "mask_pii": should_mask}, services=services_field)
 
     return {
         "findings": saved_findings,

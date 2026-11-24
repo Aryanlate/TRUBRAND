@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { User, getStoredToken, getStoredUser, clearAuth } from "@/lib/api";
+import { User, getStoredToken, getStoredUser, clearAuth, apiRequest } from "@/lib/api";
 import BrandAssistant from "@/components/BrandAssistant";
 
 interface AppShellProps {
@@ -15,6 +15,7 @@ export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [providers, setProviders] = useState<string[]>([]);
 
   useEffect(() => {
     const token = getStoredToken();
@@ -28,6 +29,10 @@ export default function AppShell({ children }: AppShellProps) {
 
     setUser(currentUser);
     setLoading(false);
+
+    apiRequest<string[]>("/providers")
+      .then((res) => setProviders(Array.isArray(res) ? res : []))
+      .catch(() => {});
   }, [router]);
 
   const handleLogout = () => {
@@ -112,6 +117,31 @@ export default function AppShell({ children }: AppShellProps) {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-[#E2E8F0] bg-white py-4 px-4 sm:px-6 lg:px-8 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <p>
+            Findings labelled <span className="font-bold text-[#142D4E]">AI-assisted</span> use external AI services. Humans make all final decisions.
+          </p>
+
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span className="font-semibold text-slate-600">Configured AI Providers:</span>
+            {providers.length > 0 ? (
+              providers.map((p) => (
+                <span
+                  key={p}
+                  className="px-2 py-0.5 rounded bg-slate-100 text-[#142D4E] font-mono text-[11px] font-bold uppercase border border-[#E2E8F0]"
+                >
+                  {p}
+                </span>
+              ))
+            ) : (
+              <span className="italic text-slate-400">None detected (Rule-based only)</span>
+            )}
+          </div>
+        </div>
+      </footer>
 
       {/* Floating Brand Assistant */}
       <BrandAssistant />
