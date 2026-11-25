@@ -81,7 +81,7 @@ export default function InsightsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-8 max-w-full">
+      <div className="space-y-8 max-w-full break-words [overflow-wrap:anywhere]">
         {/* Header */}
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#142D4E] tracking-tight">

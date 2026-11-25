@@ -5,7 +5,10 @@ import datetime
 from typing import Optional, Any
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -28,6 +31,24 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="TruBrand API", lifespan=lifespan)
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for err in exc.errors():
+        msg = err.get("msg", "Validation error")
+        loc = " -> ".join(str(l) for l in err.get("loc", []) if l != "body")
+        errors.append(f"{loc}: {msg}" if loc else msg)
+    detail = "; ".join(errors) if errors else "Invalid request data"
+    return JSONResponse(status_code=422, content={"detail": detail})
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": f"Internal server error: {str(exc)}"})
 
 frontend_env = os.getenv("FRONTEND_URL", "http://localhost:3000")
 origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -89,7 +110,9 @@ class LoginRequest(BaseModel):
 
 @app.post("/auth/login")
 def login(req: LoginRequest):
-    users = db.query("SELECT * FROM users WHERE email = ?", (req.email,))
+    if not req.email or not req.email.strip() or not req.password or not req.password.strip():
+        raise HTTPException(status_code=400, detail="Email and password cannot be empty.")
+    users = db.query("SELECT * FROM users WHERE email = ?", (req.email.strip(),))
     if not users or not verify_password(req.password, users[0]["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     user = users[0]
@@ -148,8 +171,13 @@ def create_kb_item(kind: str, item: dict, user: dict = Depends(require_role("man
     k = KIND_NORM.get(kind.lower())
     if not k:
         raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="Invalid item payload")
+    dumped = json.dumps(item)
+    if len(dumped) > 20000:
+        raise HTTPException(status_code=400, detail="Item data cannot exceed 20,000 characters.")
     if k == "asset":
-        db.execute("INSERT OR REPLACE INTO kb_items (id, kind, data) VALUES ('assets', 'asset', ?)", (json.dumps(item),))
+        db.execute("INSERT OR REPLACE INTO kb_items (id, kind, data) VALUES ('assets', 'asset', ?)", (dumped,))
         return item
     item_id = item.get("id") or str(uuid.uuid4())
     item["id"] = item_id
@@ -161,6 +189,11 @@ def update_kb_item(kind: str, id: str, item: dict, user: dict = Depends(require_
     k = KIND_NORM.get(kind.lower())
     if not k:
         raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="Invalid item payload")
+    dumped = json.dumps(item)
+    if len(dumped) > 20000:
+        raise HTTPException(status_code=400, detail="Item data cannot exceed 20,000 characters.")
     existing = db.query("SELECT id FROM kb_items WHERE id = ?", (id,))
     if not existing and k != "asset":
         raise HTTPException(status_code=404, detail="Item not found")
@@ -173,6 +206,9 @@ def delete_kb_item(kind: str, id: str, user: dict = Depends(require_role("manage
     k = KIND_NORM.get(kind.lower())
     if not k:
         raise HTTPException(status_code=400, detail=f"Unknown kind '{kind}'")
+    existing = db.query("SELECT id FROM kb_items WHERE id = ?", (id,))
+    if not existing and k != "asset":
+        raise HTTPException(status_code=404, detail="Item not found")
     db.execute("DELETE FROM kb_items WHERE id = ?", (id,))
     return {"ok": True}
 
@@ -186,11 +222,22 @@ class CreateContentRequest(BaseModel):
 
 @app.post("/content")
 def create_content(req: CreateContentRequest, user: dict = Depends(get_user)):
+    if not req.title or not req.title.strip():
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
+    if len(req.title) > 20000:
+        raise HTTPException(status_code=400, detail="Title cannot exceed 20,000 characters.")
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Content text cannot be empty.")
+    if len(req.text) > 20000:
+        raise HTTPException(status_code=400, detail="Content text cannot exceed 20,000 characters.")
+    if not req.channel or not req.channel.strip():
+        raise HTTPException(status_code=400, detail="Channel cannot be empty.")
+
     content_id = str(uuid.uuid4())
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     db.execute(
         "INSERT INTO content (id, creator_id, title, channel, state, current_version, created_at) VALUES (?, ?, ?, ?, 'Draft', 1, ?)",
-        (content_id, user["id"], req.title, req.channel, now)
+        (content_id, user["id"], req.title.strip(), req.channel.strip(), now)
     )
     version_id = str(uuid.uuid4())
     meta_json = json.dumps(req.meta or {})
@@ -223,7 +270,7 @@ def get_content(id: str, user: dict = Depends(get_user)):
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
     if user["role"] == "creator" and c["creator_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: creators can only access their own content")
 
     raw_versions = db.query("SELECT * FROM versions WHERE content_id = ? ORDER BY number ASC", (id,))
     versions = []
@@ -281,7 +328,7 @@ def get_content_report_data(id: str, user: dict = Depends(get_user)):
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
     if user["role"] == "creator" and c["creator_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: creators can only access their own content")
 
     raw_versions = db.query("SELECT * FROM versions WHERE content_id = ? ORDER BY number ASC", (id,))
     versions = []
@@ -345,7 +392,7 @@ def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: di
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
     if user["role"] == "creator" and c["creator_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: creators can only review their own content")
 
     ver_num = c["current_version"]
     ver_rows = db.query("SELECT * FROM versions WHERE content_id = ? AND number = ?", (id, ver_num))
@@ -379,7 +426,7 @@ def review_content(id: str, req: Optional[ReviewContentRequest] = None, user: di
             if f.get("explanation"):
                 f["explanation"] = unmask_text(f["explanation"], pii_map)
 
-    # delete previous findings of that version
+    # delete previous findings of that version (ensures review is idempotent)
     db.execute("DELETE FROM findings WHERE content_id = ? AND version_number = ?", (id, ver_num))
 
     # store new findings (status open)
@@ -421,12 +468,34 @@ class ReviseContentRequest(BaseModel):
 
 @app.post("/content/{id}/revise")
 def revise_content(id: str, req: ReviseContentRequest, user: dict = Depends(get_user)):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Content text cannot be empty.")
+    if len(req.text) > 20000:
+        raise HTTPException(status_code=400, detail="Content text cannot exceed 20,000 characters.")
+
     contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
     if not contents:
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
     if user["role"] == "creator" and c["creator_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: creators can only revise their own content")
+
+    # Safe to repeat: if identical to current version, return current state idempotently
+    cur_ver = c["current_version"]
+    cur_ver_rows = db.query("SELECT * FROM versions WHERE content_id = ? AND number = ?", (id, cur_ver))
+    if cur_ver_rows:
+        cv = cur_ver_rows[0]
+        try:
+            cv_meta = json.loads(cv["meta"]) if cv["meta"] else {}
+        except Exception:
+            cv_meta = {}
+        if cv["body"] == req.text and cv_meta == (req.meta or {}):
+            return {
+                "content_id": id,
+                "current_version": cur_ver,
+                "state": c["state"],
+                "version_id": cv["id"]
+            }
 
     new_ver = c["current_version"] + 1
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -454,6 +523,8 @@ def patch_finding(id: str, req: PatchFindingRequest, user: dict = Depends(get_us
         raise HTTPException(status_code=400, detail="Invalid status. Must be accepted, dismissed, or open.")
     if req.status == "dismissed" and not (req.dismiss_reason or "").strip():
         raise HTTPException(status_code=400, detail="Dismissing a finding requires a dismiss_reason")
+    if req.dismiss_reason and len(req.dismiss_reason) > 20000:
+        raise HTTPException(status_code=400, detail="Dismiss reason cannot exceed 20,000 characters.")
 
     findings = db.query("SELECT * FROM findings WHERE id = ?", (id,))
     if not findings:
@@ -521,6 +592,10 @@ def submit_content(id: str, user: dict = Depends(get_user)):
     if not (is_creator or is_privileged):
         raise HTTPException(status_code=403, detail="Forbidden: only creator or manager/admin can submit content")
 
+    # Safe to repeat: if already InReview, return current state
+    if c["state"] == "InReview":
+        return {"id": id, "state": "InReview"}
+
     if c["state"] != "Reviewed":
         raise HTTPException(status_code=400, detail=f"Content must be in 'Reviewed' state to submit (current state is '{c['state']}')")
 
@@ -536,14 +611,21 @@ class CreateCommentRequest(BaseModel):
 @app.post("/content/{id}/comments")
 def add_comment(id: str, req: CreateCommentRequest, user: dict = Depends(get_user)):
     if not req.text or not req.text.strip():
-        raise HTTPException(status_code=400, detail="Comment text cannot be empty")
+        raise HTTPException(status_code=400, detail="Comment text cannot be empty.")
+    if len(req.text) > 20000:
+        raise HTTPException(status_code=400, detail="Comment text cannot exceed 20,000 characters.")
 
     contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
     if not contents:
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
     if user["role"] == "creator" and c["creator_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: creators can only comment on their own content")
+
+    if req.finding_id:
+        f_check = db.query("SELECT id FROM findings WHERE id = ? AND content_id = ?", (req.finding_id, id))
+        if not f_check:
+            raise HTTPException(status_code=404, detail="Finding not found")
 
     comment_id = str(uuid.uuid4())
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -570,18 +652,34 @@ class DecisionRequest(BaseModel):
 @app.post("/content/{id}/decision")
 def content_decision(id: str, req: DecisionRequest, user: dict = Depends(get_user)):
     if user["role"] not in ("reviewer", "manager", "admin"):
-        raise HTTPException(status_code=403, detail="Forbidden: only reviewer, manager, or admin can make approval decisions")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: Action requires role 'reviewer', 'manager', or 'admin'. Your current role is '{user['role']}'."
+        )
 
     contents = db.query("SELECT * FROM content WHERE id = ?", (id,))
     if not contents:
         raise HTTPException(status_code=404, detail="Content not found")
     c = contents[0]
 
+    # Safe to repeat: if identical decision already made, return current state
+    if req.decision == "approve" and c["state"] == "Approved":
+        approvals = db.query("SELECT id FROM approvals WHERE content_id = ? ORDER BY created_at DESC LIMIT 1", (id,))
+        app_id = approvals[0]["id"] if approvals else ""
+        return {"id": id, "state": "Approved", "decision": req.decision, "approval_id": app_id}
+    if req.decision == "request_changes" and c["state"] == "ChangesRequested":
+        approvals = db.query("SELECT id FROM approvals WHERE content_id = ? ORDER BY created_at DESC LIMIT 1", (id,))
+        app_id = approvals[0]["id"] if approvals else ""
+        return {"id": id, "state": "ChangesRequested", "decision": req.decision, "approval_id": app_id}
+
     if c["state"] != "InReview":
         raise HTTPException(status_code=400, detail=f"Content must be in 'InReview' state to make a decision (current state is '{c['state']}')")
 
     if req.decision not in ("approve", "request_changes"):
         raise HTTPException(status_code=400, detail="Invalid decision. Must be 'approve' or 'request_changes'.")
+
+    if req.reason and len(req.reason) > 20000:
+        raise HTTPException(status_code=400, detail="Decision reason cannot exceed 20,000 characters.")
 
     override_stored = None
     if req.decision == "approve":
@@ -825,21 +923,24 @@ class AssistantQuestionRequest(BaseModel):
 def chat_assistant(req: AssistantQuestionRequest, user: dict = Depends(get_user)):
     if not req.question or not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    if len(req.question) > 20000:
+        raise HTTPException(status_code=400, detail="Question cannot exceed 20,000 characters.")
 
     open_findings = []
     if req.content_id:
         content_rows = db.query("SELECT current_version FROM content WHERE id = ?", (req.content_id,))
-        if content_rows:
-            cur_ver = content_rows[0]["current_version"]
-            f_rows = db.query(
-                "SELECT data FROM findings WHERE content_id = ? AND version_number = ? AND status = 'open'",
-                (req.content_id, cur_ver)
-            )
-            for fr in f_rows:
-                try:
-                    open_findings.append(json.loads(fr["data"]))
-                except Exception:
-                    pass
+        if not content_rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+        cur_ver = content_rows[0]["current_version"]
+        f_rows = db.query(
+            "SELECT data FROM findings WHERE content_id = ? AND version_number = ? AND status = 'open'",
+            (req.content_id, cur_ver)
+        )
+        for fr in f_rows:
+            try:
+                open_findings.append(json.loads(fr["data"]))
+            except Exception:
+                pass
 
     kb = load_kb()
     answer, source_ids, grounded, provider = assistant.answer_brand_question(
@@ -876,6 +977,8 @@ class AssistantFeedbackRequest(BaseModel):
 
 @app.patch("/assistant/{id}")
 def update_assistant_feedback(id: str, req: AssistantFeedbackRequest, user: dict = Depends(get_user)):
+    if req.feedback and len(req.feedback) > 20000:
+        raise HTTPException(status_code=400, detail="Feedback cannot exceed 20,000 characters.")
     rows = db.query("SELECT id FROM assistant_messages WHERE id = ?", (id,))
     if not rows:
         raise HTTPException(status_code=404, detail="Assistant message not found")

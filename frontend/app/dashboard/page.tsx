@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6 max-w-full">
+      <div className="space-y-6 max-w-full break-words [overflow-wrap:anywhere]">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

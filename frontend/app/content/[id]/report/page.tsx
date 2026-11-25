@@ -144,7 +144,7 @@ export default function ApprovalReportPage() {
       </div>
 
       {/* Report Sheet */}
-      <article className="max-w-4xl mx-auto bg-white border border-slate-200 print:border-none rounded-xl p-8 sm:p-12 shadow-sm print:shadow-none print:p-0">
+      <article className="max-w-4xl mx-auto bg-white border border-slate-200 print:border-none rounded-xl p-8 sm:p-12 shadow-sm print:shadow-none print:p-0 break-words [overflow-wrap:anywhere]">
         {/* Header */}
         <header className="border-b border-slate-200 pb-6 mb-6">
           <div className="flex items-start justify-between">

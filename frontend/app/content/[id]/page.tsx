@@ -78,10 +78,15 @@ export default function ContentDetailPage() {
     }
   };
 
+  // Workflow action states
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
+
   // Comments
   const [commentText, setCommentText] = useState("");
   const [commentFindingId, setCommentFindingId] = useState<string>("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   // Decision
   const [decisionReason, setDecisionReason] = useState("");
@@ -100,6 +105,7 @@ export default function ContentDetailPage() {
       setLoading(false);
     } catch (err: any) {
       setError(err.message || "Failed to load content");
+      setContent(null);
       setLoading(false);
     }
   };
@@ -218,11 +224,14 @@ export default function ContentDetailPage() {
 
   // Submit for review
   const handleSubmitForReview = async () => {
+    setSubmittingReview(true);
     try {
       await apiRequest(`/content/${id}/submit`, { method: "POST" });
       await loadContent();
     } catch (err: any) {
       setError(err.message || "Failed to submit for review");
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -232,6 +241,7 @@ export default function ContentDetailPage() {
     status: "open" | "accepted" | "dismissed",
     reason?: string
   ) => {
+    setUpdatingFindingId(findingId);
     try {
       await apiRequest(`/findings/${findingId}`, {
         method: "PATCH",
@@ -240,12 +250,15 @@ export default function ContentDetailPage() {
       await loadContent();
     } catch (err: any) {
       setError(err.message || "Failed to update finding");
+    } finally {
+      setUpdatingFindingId(null);
     }
   };
 
   // Finding action: Save edited suggestion
   const handleSaveSuggestion = async (finding: Finding) => {
     const updatedData = { ...(finding.data || {}), suggestion: editSuggestionText };
+    setUpdatingFindingId(finding.id || null);
     try {
       await apiRequest(`/findings/${finding.id}`, {
         method: "PATCH",
@@ -256,13 +269,23 @@ export default function ContentDetailPage() {
       await loadContent();
     } catch (err: any) {
       setError(err.message || "Failed to update suggestion");
+    } finally {
+      setUpdatingFindingId(null);
     }
   };
 
   // Submit Comment
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim()) {
+      setCommentError("Comment text cannot be empty or whitespace.");
+      return;
+    }
+    if (commentText.length > 20000) {
+      setCommentError("Comment text cannot exceed 20,000 characters.");
+      return;
+    }
+    setCommentError(null);
     setSubmittingComment(true);
     try {
       await apiRequest(`/content/${id}/comments`, {
@@ -381,7 +404,7 @@ export default function ContentDetailPage() {
     return <div className="whitespace-pre-wrap leading-relaxed">{elements}</div>;
   };
 
-  if (loading || !content) {
+  if (loading) {
     return (
       <AppShell>
         <div className="space-y-6 max-w-full">
@@ -436,9 +459,33 @@ export default function ContentDetailPage() {
     );
   }
 
+  if (!content) {
+    return (
+      <AppShell>
+        <div className="max-w-xl mx-auto my-12 bg-white border border-[#E2E8F0] rounded-xl p-8 text-center space-y-4 shadow-sm break-words [overflow-wrap:anywhere]">
+          <div className="w-14 h-14 mx-auto rounded-full bg-red-100 text-[#B91C1C] flex items-center justify-center font-bold text-2xl">
+            !
+          </div>
+          <h2 className="text-2xl font-bold text-[#142D4E]">Content Not Found</h2>
+          <p className="text-base text-slate-600">
+            {error || "The requested content draft does not exist or you do not have permission to view it."}
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center px-5 py-2.5 rounded-lg bg-[#2563EB] text-white font-semibold hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+            >
+              Return to Dashboard
+            </Link>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
-      <div className="space-y-6 max-w-full">
+      <div className="space-y-6 max-w-full break-words [overflow-wrap:anywhere]">
         {/* Dismissible Error Toast */}
         <DismissibleToast message={error} onDismiss={() => setError(null)} />
 
@@ -598,9 +645,10 @@ export default function ContentDetailPage() {
                   <button
                     type="button"
                     onClick={handleSubmitForReview}
-                    className="px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                    disabled={submittingReview}
+                    className="px-4 py-2.5 rounded-lg text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                   >
-                    ✓ Submit for review
+                    {submittingReview ? "Submitting..." : "✓ Submit for review"}
                   </button>
                 )}
               </div>
@@ -689,9 +737,10 @@ export default function ContentDetailPage() {
                       <button
                         type="button"
                         onClick={handleSubmitForReview}
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                        disabled={submittingReview}
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                       >
-                        ✓ Submit this version for review
+                        {submittingReview ? "Submitting..." : "✓ Submit this version for review"}
                       </button>
                     ) : (
                       <button
@@ -840,30 +889,33 @@ export default function ContentDetailPage() {
                             <>
                               <button
                                 type="button"
+                                disabled={updatingFindingId === f.id}
                                 onClick={() => handleUpdateFindingStatus(f.id!, "accepted")}
-                                className="px-3 py-1 font-semibold rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                                className="px-3 py-1 font-semibold rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                               >
-                                Accept
+                                {updatingFindingId === f.id ? "Updating..." : "Accept"}
                               </button>
                               {f.suggestion && (
                                 <button
                                   type="button"
+                                  disabled={updatingFindingId === f.id}
                                   onClick={() => {
                                     setEditingSuggestionFinding(f);
                                     setEditSuggestionText(f.suggestion || "");
                                   }}
-                                  className="px-2.5 py-1 font-semibold rounded text-xs bg-slate-100 text-[#142D4E] hover:bg-slate-200 border border-slate-300 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                                  className="px-2.5 py-1 font-semibold rounded text-xs bg-slate-100 text-[#142D4E] hover:bg-slate-200 border border-slate-300 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                                 >
                                   Edit fix
                                 </button>
                               )}
                               <button
                                 type="button"
+                                disabled={updatingFindingId === f.id}
                                 onClick={() => {
                                   setDismissModalFinding(f);
                                   setDismissReason("");
                                 }}
-                                className="px-3 py-1 font-semibold rounded text-xs bg-red-100 text-[#B91C1C] hover:bg-red-200 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
+                                className="px-3 py-1 font-semibold rounded text-xs bg-red-100 text-[#B91C1C] hover:bg-red-200 transition focus:outline-none focus:ring-2 focus:ring-[#38BDF8] disabled:opacity-50"
                               >
                                 Dismiss
                               </button>
@@ -871,10 +923,11 @@ export default function ContentDetailPage() {
                           ) : (
                             <button
                               type="button"
+                              disabled={updatingFindingId === f.id}
                               onClick={() => handleUpdateFindingStatus(f.id!, "open")}
-                              className="text-xs font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1"
+                              className="text-xs font-semibold text-[#2563EB] hover:underline focus:outline-none focus:ring-2 focus:ring-[#38BDF8] rounded px-1 disabled:opacity-50"
                             >
-                              Re-open
+                              {updatingFindingId === f.id ? "Updating..." : "Re-open"}
                             </button>
                           )}
                         </div>
@@ -957,10 +1010,16 @@ export default function ContentDetailPage() {
                   rows={3}
                   required
                   value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
+                  onChange={(e) => {
+                    setCommentText(e.target.value);
+                    if (commentError) setCommentError(null);
+                  }}
                   placeholder="Share feedback, review notes, or instructions..."
                   className="w-full px-3 py-2 text-base border border-[#E2E8F0] rounded-lg text-[#1E293B] bg-white focus:ring-2 focus:ring-[#2563EB]"
                 />
+                {commentError && (
+                  <p className="mt-1 text-sm text-red-600 font-medium">{commentError}</p>
+                )}
               </div>
 
               {versionFindings.length > 0 && (

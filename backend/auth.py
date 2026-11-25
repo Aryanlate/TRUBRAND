@@ -51,6 +51,9 @@ def get_user(credentials: HTTPAuthorizationCredentials = Security(security)):
 def require_role(*roles):
     def checker(user: dict = Depends(get_user)):
         if user["role"] not in roles:
-            raise HTTPException(status_code=403, detail="Forbidden: insufficient role")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Forbidden: Action requires one of the following roles: {', '.join(roles)}. Your current role is '{user['role']}'."
+            )
         return user
     return checker

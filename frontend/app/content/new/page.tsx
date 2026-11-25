@@ -23,6 +23,7 @@ export default function NewContentPage() {
   const [approvedLogoBgs, setApprovedLogoBgs] = useState<string[]>(["#FFFFFF", "#2E7D32"]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; text?: string }>({});
 
   // File upload state
   const [isDragging, setIsDragging] = useState(false);
@@ -108,10 +109,22 @@ export default function NewContentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !text.trim()) {
-      setError("Please fill in both title and content text.");
+    const errs: { title?: string; text?: string } = {};
+    if (!title.trim()) {
+      errs.title = "Title is required and cannot be empty or whitespace.";
+    } else if (title.length > 20000) {
+      errs.title = "Title cannot exceed 20,000 characters.";
+    }
+    if (!text.trim()) {
+      errs.text = "Content text is required and cannot be empty or whitespace.";
+    } else if (text.length > 20000) {
+      errs.text = "Content text cannot exceed 20,000 characters.";
+    }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
       return;
     }
+    setFieldErrors({});
 
     setLoading(true);
     setError(null);
@@ -223,7 +236,7 @@ export default function NewContentPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 sm:p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 sm:p-8 space-y-6 break-words [overflow-wrap:anywhere]">
           <div>
             <label htmlFor="title" className="block text-base font-semibold text-[#1E293B] mb-1.5">
               Title / Campaign Name *
@@ -233,10 +246,16 @@ export default function NewContentPage() {
               type="text"
               required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: undefined }));
+              }}
               placeholder="e.g. Summer Single-Origin Launch"
               className="w-full px-4 py-2.5 text-base border border-[#E2E8F0] rounded-lg text-[#1E293B] bg-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
             />
+            {fieldErrors.title && (
+              <p className="mt-1 text-sm text-red-600 font-medium">{fieldErrors.title}</p>
+            )}
           </div>
 
           <div>
@@ -265,10 +284,16 @@ export default function NewContentPage() {
               rows={8}
               required
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (fieldErrors.text) setFieldErrors((prev) => ({ ...prev, text: undefined }));
+              }}
               placeholder="Write your campaign copy, social post, or email text here..."
               className="w-full px-4 py-2.5 text-base border border-[#E2E8F0] rounded-lg text-[#1E293B] bg-white focus:outline-none focus:ring-2 focus:ring-[#2563EB] font-sans"
             />
+            {fieldErrors.text && (
+              <p className="mt-1 text-sm text-red-600 font-medium">{fieldErrors.text}</p>
+            )}
           </div>
 
           {/* Media & Visual Metadata */}

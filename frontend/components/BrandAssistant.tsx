@@ -194,7 +194,7 @@ export default function BrandAssistant() {
                   }`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed ${
+                    className={`max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed break-words [overflow-wrap:anywhere] ${
                       m.sender === "user"
                         ? "bg-[#2563EB] text-white rounded-br-none"
                         : "bg-white text-[#1E293B] border border-[#E2E8F0] rounded-bl-none shadow-sm space-y-2"

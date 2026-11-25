@@ -88,6 +88,15 @@ export interface Content {
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+let activeRequestsCount = 0;
+let slowNotificationTimer: any = null;
+
+function notifySlowServer(slow: boolean) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("server-slow", { detail: { slow } }));
+  }
+}
+
 export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
@@ -105,16 +114,52 @@ export async function apiRequest<T = any>(
   }
 
   const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+
+  // Track active requests to detect slow backend / cold starts
+  activeRequestsCount++;
+  if (!slowNotificationTimer) {
+    slowNotificationTimer = setTimeout(() => {
+      if (activeRequestsCount > 0) {
+        notifySlowServer(true);
+      }
+    }, 4000);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (networkErr: any) {
+    activeRequestsCount = Math.max(0, activeRequestsCount - 1);
+    if (activeRequestsCount === 0 && slowNotificationTimer) {
+      clearTimeout(slowNotificationTimer);
+      slowNotificationTimer = null;
+      notifySlowServer(false);
+    }
+    throw new Error("Unable to connect to the server. Please check your network connection and verify the backend is running.");
+  }
+
+  activeRequestsCount = Math.max(0, activeRequestsCount - 1);
+  if (activeRequestsCount === 0 && slowNotificationTimer) {
+    clearTimeout(slowNotificationTimer);
+    slowNotificationTimer = null;
+    notifySlowServer(false);
+  }
 
   let data: any;
   try {
     data = await response.json();
   } catch {
     data = null;
+  }
+
+  if (response.status === 401 && !endpoint.includes("/auth/login")) {
+    clearAuth();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = `/login?error=${encodeURIComponent("Session expired. Please log in again.")}`;
+    }
   }
 
   if (!response.ok) {
